@@ -23,7 +23,10 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@lancedb/lancedb": "^0.31.0",
+    "better-sqlite3": "^13.0.1",
     "electron-updater": "^6.3.9",
+    "sql.js": "^1.14.1",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
@@ -34,6 +37,7 @@
     "@vitejs/plugin-vue": "^6.0.2",
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12",
+    "electron-rebuild": "^3.2.9",
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.1",
     "eslint-plugin-vue": "^10.6.2",
