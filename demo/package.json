@@ -24,8 +24,12 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@lancedb/lancedb": "^0.31.0",
+    "@langchain/core": "^1.2.3",
+    "@langchain/openai": "^1.5.5",
     "better-sqlite3": "^13.0.1",
+    "dotenv": "^17.4.2",
     "electron-updater": "^6.3.9",
+    "langchain": "^1.5.4",
     "sql.js": "^1.14.1",
     "vue-router": "^4.6.4"
   },
