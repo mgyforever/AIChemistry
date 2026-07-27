@@ -34,11 +34,19 @@ interface LanceDBAPI {
   tableExists(name: string): Promise<boolean>
 }
 
+interface AIChatAPI {
+  chat(messages: { role: string; content: string }[]): Promise<string>
+  chatStream(messages: { role: string; content: string }[]): Promise<string>
+}
+
 interface DatabaseAPI {
-  conversation: ConversationAPI
-  message: MessageAPI
-  document: DocumentAPI
-  lancedb: LanceDBAPI
+  db: {
+    conversation: ConversationAPI
+    message: MessageAPI
+    document: DocumentAPI
+    lancedb: LanceDBAPI
+  }
+  ai: AIChatAPI
 }
 
 declare global {

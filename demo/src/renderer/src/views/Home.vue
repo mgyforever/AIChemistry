@@ -1,28 +1,56 @@
-<script setup lang="ts">
-import Versions from '../components/Versions.vue'
-
-const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
-</script>
-
 <template>
-  <div class="home">
-    <img alt="logo" class="logo" src="../assets/electron.svg" />
-    <div class="creator">Powered by electron-vite</div>
-    <div class="text">
-      Build an Electron app with
-      <span class="vue">Vue</span>
-      and
-      <span class="ts">TypeScript</span>
-    </div>
-    <p class="tip">Please try pressing <code>F12</code> to open the devTool</p>
-    <div class="actions">
-      <div class="action">
-        <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">Documentation</a>
+  <div class="h-screen w-screen flex bg-[var(--color-surface)]">
+    <ChatSidebar
+      :conversations="chatStore.conversations"
+      :current-id="chatStore.currentConversationId"
+      @select="handleSelect"
+      @create="handleCreate"
+      @delete="handleDelete"
+    />
+
+    <!-- 主聊天区域 -->
+    <main class="flex-1 flex flex-col min-w-0">
+      <ChatView
+        :messages="chatStore.messages"
+        :streaming-text="chatStore.streamingText"
+        :streaming-think="chatStore.streamingThink"
+        :is-loading="chatStore.isLoading"
+      />
+
+      <div class="shrink-0 px-4 pb-4 pt-2">
+        <ChatInput
+          :disabled="chatStore.isLoading"
+          @send="handleSend"
+        />
       </div>
-      <div class="action">
-        <a target="_blank" rel="noreferrer" @click="ipcHandle">Send IPC</a>
-      </div>
-    </div>
-    <Versions />
+    </main>
   </div>
 </template>
+
+<script setup lang="ts">
+import { onMounted } from 'vue'
+import ChatSidebar from '../components/chat/ChatSidebar.vue'
+import ChatView from '../components/chat/ChatView.vue'
+import ChatInput from '../components/chat/ChatInput.vue'
+import { chatStore } from '../stores/chat'
+
+onMounted(async () => {
+  await chatStore.loadConversations()
+})
+
+async function handleSelect(id: number): Promise<void> {
+  await chatStore.selectConversation(id)
+}
+
+async function handleCreate(): Promise<void> {
+  await chatStore.createConversation()
+}
+
+async function handleDelete(id: number): Promise<void> {
+  await chatStore.deleteConversation(id)
+}
+
+async function handleSend(content: string): Promise<void> {
+  await chatStore.sendMessage(content)
+}
+</script>

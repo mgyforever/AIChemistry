@@ -1,7 +1,6 @@
 <template>
-  <div id="app-root">
-    <main>
-      <router-view />
-    </main>
-  </div>
+  <router-view />
 </template>
+
+<script setup lang="ts">
+</script>

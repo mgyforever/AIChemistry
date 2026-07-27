@@ -6,5 +6,11 @@ dotenv.config()
 export const model = new ChatOpenAI({
   model: process.env.MODEL,
   temperature: 0,
-  apiKey: process.env.DEEPSEEK_API_KEY
+  apiKey: process.env.DEEPSEEK_API_KEY,
+  configuration: {
+    baseURL: 'https://api.deepseek.com'
+  },
+  modelKwargs: {
+    response_format: { type: 'json_object' }
+  }
 })

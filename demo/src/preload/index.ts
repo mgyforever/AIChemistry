@@ -3,6 +3,13 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
+  // ========== AI Chat ==========
+  ai: {
+    chat: (messages: { role: string; content: string }[]): Promise<string> =>
+      ipcRenderer.invoke('ai:chat', messages),
+    chatStream: (messages: { role: string; content: string }[]): Promise<string> =>
+      ipcRenderer.invoke('ai:chat-stream', messages)
+  },
   db: {
     // ========== Conversation ==========
     conversation: {

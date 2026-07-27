@@ -1,8 +1,9 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { initDatabases } from './database'
+import { registerAiHandlers } from './ai-server'
 
 function createWindow(): void {
   // Create the browser window.
@@ -52,8 +53,8 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  // Register AI chat IPC handlers
+  registerAiHandlers()
 
   createWindow()
 

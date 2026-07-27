@@ -1,11 +1,25 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
+import { existsSync, mkdirSync } from 'fs'
+import { is } from '@electron-toolkit/utils'
 
 let db: Database | null = null
 
+function getDbPath(): string {
+  if (is.dev) {
+    return join(process.cwd(), 'src/main/database/data/app-data.db')
+  }
+  return join(app.getPath('userData'), 'app-data.db')
+}
+
 export function initSQLite(): void {
-  const dbPath = join(app.getPath('userData'), 'app-data.db')
+  const dbPath = getDbPath()
+  // 确保目录存在
+  const dir = join(dbPath, '..')
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true })
+  }
   db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
