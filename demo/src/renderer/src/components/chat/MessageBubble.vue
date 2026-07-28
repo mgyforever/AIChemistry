@@ -148,6 +148,7 @@ const aiChat = computed<AiChat | null>(() => {
 
   // 伪流式期间：streamingThink 已提取好，content 是纯文本 messages
   if (props.streamingThink !== undefined) {
+    console.log('streamingThink:', props.streamingThink)
     return {
       think: props.streamingThink,
       messages: props.content

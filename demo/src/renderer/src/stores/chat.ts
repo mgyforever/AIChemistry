@@ -98,11 +98,21 @@ export const chatStore = reactive({
     this.streamingThink = ''
     this.isLoading = true
 
-    // 构造历史消息
-    const history = updatedMsgs.map((m) => ({
-      role: m.role,
-      content: m.content
-    }))
+    // 构造历史消息（assistant 消息只传 messages 纯文本，去掉 JSON 包裹）
+    const history = updatedMsgs.map((m) => {
+      let content = m.content
+      if (m.role === 'assistant') {
+        try {
+          const parsed = JSON.parse(content)
+          if (parsed && typeof parsed.messages === 'string') {
+            content = parsed.messages
+          }
+        } catch {
+          // 不是 JSON 则原样使用
+        }
+      }
+      return { role: m.role, content }
+    })
     console.log('[Store] 发送给AI的消息数:', history.length)
 
     try {
@@ -139,7 +149,7 @@ export const chatStore = reactive({
       const charsPerTick = Math.max(1, Math.ceil(contentLength / totalFrames))
 
       let currentIndex = 0
-      this.streamingText = ''
+      this.streamingText = messagesText.slice(0, 1) || ' '
       this._pseudoStreamTimer = setInterval(() => {
         const nextIndex = Math.min(currentIndex + charsPerTick, contentLength)
         this.streamingText = messagesText.slice(0, nextIndex)
@@ -156,7 +166,7 @@ export const chatStore = reactive({
           console.log('[Store] 伪流式输出完成')
         }
       }, intervalMs)
-      setImmediate(() => {
+      setTimeout(() => {
         if (this._pseudoStreamTimer) {
           // 如果 messagesText 为空，伪流式立刻完成
           if (contentLength === 0) {
@@ -167,7 +177,7 @@ export const chatStore = reactive({
             this.streamingThink = ''
           }
         }
-      })
+      }, 0)
     } catch (err) {
       console.error('[Store] sendMessage 异常:', err)
       this.isLoading = false

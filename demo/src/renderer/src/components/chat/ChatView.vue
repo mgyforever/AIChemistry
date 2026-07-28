@@ -33,7 +33,7 @@
       key="streaming-bubble"
       role="assistant"
       :content="props.streamingText"
-      :streaming-think="props.streamingThink || undefined"
+      :streaming-think="props.streamingThink"
     />
 
     <!-- 加载指示器 -->
