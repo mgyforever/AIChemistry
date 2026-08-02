@@ -25,6 +25,21 @@
   --transition-normal: 250ms ease;
   --transition-slow: 400ms ease;
   --sidebar-width: 300px;
+
+  /* 实验事件类型色 */
+  --type-operation: #6366f1;
+  --type-observation: #06b6d4;
+  --type-measurement: #f59e0b;
+  --type-reagent: #10b981;
+  --type-record: #a78bfa;
+  --type-safety: #f43f5e;
+
+  /* 实验台面板 */
+  --lab-glass: rgba(30, 30, 46, 0.72);
+  --lab-glass-border: rgba(205, 214, 244, 0.09);
+  --lab-node: #313244;
+  --lab-node-active: #06b6d4;
+  --color-accent-ink: #22d3ee;
 }
 
 /* 亮色主题 */
@@ -40,6 +55,21 @@
   --color-success: #22c55e;
   --color-danger: #ef4444;
   --color-warning: #f59e0b;
+
+  --lab-glass: rgba(255, 255, 255, 0.82);
+  --lab-glass-border: rgba(15, 23, 42, 0.08);
+  --lab-node: #cbd5e1;
+  --lab-node-active: #06b6d4;
+
+  /* 亮色主题下事件类型使用更深色值，保证对比度 */
+  --type-operation: #4338ca;
+  --type-observation: #0e7490;
+  --type-measurement: #b45309;
+  --type-reagent: #047857;
+  --type-record: #7c3aed;
+  --type-safety: #be123c;
+
+  --color-accent-ink: #0e7490;
 }
 
 *,
@@ -59,6 +89,12 @@ body {
   overflow: hidden;
   user-select: none;
   transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+input,
+textarea,
+[contenteditable='true'] {
+  user-select: text;
 }
 
 ::-webkit-scrollbar {
