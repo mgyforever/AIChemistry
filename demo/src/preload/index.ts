@@ -13,10 +13,11 @@ const api = {
   db: {
     // ========== Conversation ==========
     conversation: {
-      list: (): Promise<unknown[]> => ipcRenderer.invoke('db:conversation-list'),
+      list: (token: string): Promise<unknown[]> =>
+        ipcRenderer.invoke('db:conversation-list', token),
       get: (id: number): Promise<unknown> => ipcRenderer.invoke('db:conversation-get', id),
-      create: (title: string): Promise<{ id: number }> =>
-        ipcRenderer.invoke('db:conversation-create', title),
+      create: (title: string, token: string): Promise<{ id: number }> =>
+        ipcRenderer.invoke('db:conversation-create', title, token),
       update: (id: number, title: string): Promise<void> =>
         ipcRenderer.invoke('db:conversation-update', id, title),
       delete: (id: number): Promise<void> => ipcRenderer.invoke('db:conversation-delete', id)

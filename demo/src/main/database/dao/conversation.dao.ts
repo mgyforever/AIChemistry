@@ -2,17 +2,19 @@ import { getSQLite } from '../sqlite'
 
 export interface Conversation {
   id: number
+  token: string
   title: string
   created_at: string
   updated_at: string
 }
 
 export const ConversationDao = {
-  findAll(): Conversation[] {
+  /** 查询指定用户的全部会话（按 token 区分用户） */
+  findAll(token: string): Conversation[] {
     const db = getSQLite()
     return db
-      .prepare('SELECT * FROM conversations ORDER BY updated_at DESC')
-      .all() as Conversation[]
+      .prepare('SELECT * FROM conversations WHERE token = ? ORDER BY updated_at DESC')
+      .all(token) as Conversation[]
   },
 
   findById(id: number): Conversation | undefined {
@@ -21,10 +23,10 @@ export const ConversationDao = {
       Conversation | undefined
   },
 
-  create(title: string): { id: number } {
+  create(title: string, token: string): { id: number } {
     const db = getSQLite()
-    const stmt = db.prepare('INSERT INTO conversations (title) VALUES (?)')
-    const result = stmt.run(title)
+    const stmt = db.prepare('INSERT INTO conversations (token, title) VALUES (?, ?)')
+    const result = stmt.run(token, title)
     return { id: result.lastInsertRowid as number }
   },
 

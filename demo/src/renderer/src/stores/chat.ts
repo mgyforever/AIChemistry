@@ -17,6 +17,11 @@ interface Message {
 
 const api = window.api
 
+/** 获取当前登录用户的 token（登录时保存到 localStorage） */
+function getToken(): string {
+  return localStorage.getItem('token') || ''
+}
+
 /** 从 AI 返回的 JSON 字符串中解析 think 和 messages */
 function parseAiReply(reply: string): { think: string; messages: string } {
   try {
@@ -44,8 +49,15 @@ export const chatStore = reactive({
   _pseudoStreamTimer: null as ReturnType<typeof setInterval> | null,
 
   async loadConversations(): Promise<void> {
-    const list = await api.db.conversation.list()
+    const token = getToken()
+    const list = await api.db.conversation.list(token)
     this.conversations = list as Conversation[]
+    // 重置当前会话，避免残留上一个用户的数据
+    this._clearPseudoStream()
+    this.currentConversationId = null
+    this.messages = []
+    this.streamingText = ''
+    this.streamingThink = ''
   },
 
   async selectConversation(id: number): Promise<void> {
@@ -59,7 +71,8 @@ export const chatStore = reactive({
   },
 
   async createConversation(title?: string): Promise<Conversation> {
-    const { id } = await api.db.conversation.create(title || '新对话')
+    const token = getToken()
+    const { id } = await api.db.conversation.create(title || '新对话', token)
     const conv = (await api.db.conversation.get(id)) as Conversation
     this.conversations.unshift(conv)
     await this.selectConversation(id)

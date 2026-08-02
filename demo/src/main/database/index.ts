@@ -12,16 +12,16 @@ export async function initDatabases(): Promise<void> {
 function registerIpcHandlers(): void {
   // ========== Conversation DAO handlers ==========
 
-  ipcMain.handle('db:conversation-list', () => {
-    return ConversationDao.findAll()
+  ipcMain.handle('db:conversation-list', (_event, token: string) => {
+    return ConversationDao.findAll(token)
   })
 
   ipcMain.handle('db:conversation-get', (_event, id: number) => {
     return ConversationDao.findById(id)
   })
 
-  ipcMain.handle('db:conversation-create', (_event, title: string) => {
-    return ConversationDao.create(title)
+  ipcMain.handle('db:conversation-create', (_event, title: string, token: string) => {
+    return ConversationDao.create(title, token)
   })
 
   ipcMain.handle('db:conversation-update', (_event, id: number, title: string) => {

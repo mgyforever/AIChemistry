@@ -32,11 +32,15 @@ function createTables(): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT NOT NULL DEFAULT '',
       title TEXT NOT NULL DEFAULT '',
       created_at DATETIME DEFAULT (datetime('now', 'localtime')),
       updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
     )
   `)
+
+  // 旧表迁移：为已存在的 conversations 表补充 token 列
+  migrateConversationsToken()
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -59,6 +63,20 @@ function createTables(): void {
       updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
     )
   `)
+}
+
+/**
+ * 旧版数据库迁移：conversations 表若缺少 token 列则补充
+ */
+function migrateConversationsToken(): void {
+  if (!db) return
+
+  const columns = db.pragma('table_info(conversations)') as unknown as { name: string }[]
+  const hasToken = columns.some((col) => col.name === 'token')
+  if (!hasToken) {
+    console.log('[SQLite] 迁移 conversations 表：添加 token 列')
+    db.exec("ALTER TABLE conversations ADD COLUMN token TEXT NOT NULL DEFAULT ''")
+  }
 }
 
 export function getSQLite(): Database {

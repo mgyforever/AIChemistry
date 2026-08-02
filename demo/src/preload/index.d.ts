@@ -1,9 +1,9 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 
 interface ConversationAPI {
-  list(): Promise<unknown[]>
+  list(token: string): Promise<unknown[]>
   get(id: number): Promise<unknown>
-  create(title: string): Promise<{ id: number }>
+  create(title: string, token: string): Promise<{ id: number }>
   update(id: number, title: string): Promise<void>
   delete(id: number): Promise<void>
 }

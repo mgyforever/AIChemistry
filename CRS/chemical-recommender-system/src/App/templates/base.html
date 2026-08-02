@@ -1,0 +1,65 @@
+<!-- © 2024 National Technology & Engineering Solutions of Sandia, LLC (NTESS).  Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software. -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chemical Recommender System</title>
+    <link rel="stylesheet" type="text/css" href="../static/style.css" />
+    <link rel="icon" href="../static/assets/CRS.png" type="image/icon type" />
+    {% block head %}{% endblock %}
+  </head>
+  <body{% if request.endpoint == 'main.index' %} class="home-page"{% endif %}>
+    <nav class="navbar" role="navigation" aria-label="main navigation">
+      <div class="navbar-left">
+        <img src="../static/assets/SNL.png" alt="Sandia logo" class="navbar-img snl-logo" />
+        <img src="../static/assets/CRSwhite.png" alt="CRS logo" class="navbar-img crs-logo" />
+      </div>
+      <h1 id="headerTitle" class="navbar-title">Chemical Recommender System</h1>
+      <ul class="nav-links menu">
+        <li><a href="/">Home</a></li>
+        <li><a href="/search">Search</a></li>
+        <li><a href="/batch">Batch Job</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </nav>
+    {% block outside %}
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+    {% endblock %}
+    <div class="error-alert" id="errorAlert" role="alert"></div>
+    <script>
+      function showErrorAlert(message) {
+        var errorAlert = document.getElementById("errorAlert");
+        errorAlert.innerText = message;
+        errorAlert.style.display = "block";
+        errorAlert.classList.add("fade-out");
+        errorAlert.addEventListener(
+          "animationend",
+          function () {
+            errorAlert.style.display = "none";
+            errorAlert.classList.remove("fade-out");
+          },
+          { once: true }
+        );
+      }
+      var errorm = "{{errorm|e}}";
+      if (errorm) {
+        showErrorAlert(errorm);
+      }
+      function checkWindowSize() {
+        var headerTitle = document.getElementById("headerTitle");
+        if (window.innerWidth > 900) {
+          headerTitle.classList.remove("hidden");
+        } else {
+          headerTitle.classList.add("hidden");
+        }
+      }
+      window.addEventListener("resize", checkWindowSize);
+      window.addEventListener("load", checkWindowSize);
+    </script>
+  </body>
+</html>

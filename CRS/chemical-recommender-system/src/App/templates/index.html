@@ -1,0 +1,276 @@
+<!-- © 2024 National Technology & Engineering Solutions of Sandia, LLC (NTESS).  Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software. -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
+{% extends 'base.html' %}
+{% block head %}
+<!-- Add Google Fonts and icons -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+{% endblock %}
+{% block outside %}
+<!-- Hero Section -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-text">
+      <h1 class="hero-title">Chemical Recommender System</h1>
+      <p class="hero-subtitle">Advanced AI-powered chemical compound discovery and comparison platform</p>
+      <p class="hero-description">
+        Discover and compare chemical compounds using cutting-edge machine learning, structural similarity analysis, 
+        thermophysical properties, and toxicity evaluation powered by vector databases and prediction toolkits.
+      </p>
+      <div class="hero-actions">
+        <a href="/search" class="cta-button primary">
+          <i class="fas fa-search"></i>
+          Start Chemical Search
+        </a>
+        <a href="#features" class="cta-button secondary">
+          <i class="fas fa-info-circle"></i>
+          Learn More
+        </a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="molecule-animation">
+        <div class="molecule-structure">
+          <div class="atom atom-1"></div>
+          <div class="atom atom-2"></div>
+          <div class="atom atom-3"></div>
+          <div class="atom atom-4"></div>
+          <div class="bond bond-1"></div>
+          <div class="bond bond-2"></div>
+          <div class="bond bond-3"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features Overview -->
+<section id="features" class="features-section">
+  <div class="container">
+    <div class="section-header">
+      <h2>Powerful Chemical Analysis Features</h2>
+      <p>Comprehensive tools for chemical compound research and discovery</p>
+    </div>
+    
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <i class="fas fa-fingerprint"></i>
+        </div>
+        <h3>Molecular Fingerprinting</h3>
+        <p>Advanced 2048-bit fingerprint representation enabling efficient structural comparison and similarity analysis.</p>
+        <div class="feature-tags">
+          <span class="tag">Structural Analysis</span>
+          <span class="tag">Tanimoto Similarity</span>
+        </div>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">
+          <i class="fas fa-database"></i>
+        </div>
+        <h3>Vector Database Search</h3>
+        <p>Lightning-fast similarity searches using Milvus vector database technology for scalable molecular comparison.</p>
+        <div class="feature-tags">
+          <span class="tag">High Performance</span>
+          <span class="tag">Scalable</span>
+        </div>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">
+          <i class="fas fa-thermometer-half"></i>
+        </div>
+        <h3>Thermophysical Properties</h3>
+        <p>Computation of critical properties including melting point, boiling point, LogP, and vapor pressure.</p>
+        <div class="feature-tags">
+          <span class="tag">Property Prediction</span>
+        </div>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">
+          <i class="fas fa-shield-alt"></i>
+        </div>
+        <h3>Toxicity Assessment</h3>
+        <p>Comprehensive toxicity evaluation including bioaccumulation, EPA classifications, and LD50 predictions.</p>
+        <div class="feature-tags">
+          <span class="tag">Safety Analysis</span>
+          <span class="tag">EPA Standards</span>
+        </div>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">
+          <i class="fas fa-project-diagram"></i>
+        </div>
+        <h3>Structural Analysis</h3>
+        <p>Detailed structural property computation including molecular weight, ring analysis, and topological features.</p>
+        <div class="feature-tags">
+          <span class="tag">Molecular Weight</span>
+          <span class="tag">Topology</span>
+        </div>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">
+          <i class="fas fa-flask"></i>
+        </div>
+        <h3>Synthetic Accessibility</h3>
+        <p>RDKit-based synthesis difficulty scoring to evaluate compound manufacturability and cost-effectiveness.</p>
+        <div class="feature-tags">
+          <span class="tag">RDKit</span>
+          <span class="tag">Cost Analysis</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Process Flow -->
+<section class="process-section">
+  <div class="container">
+    <div class="section-header">
+      <h2>How CRS Works</h2>
+      <p>Streamlined workflow for chemical compound analysis and discovery</p>
+    </div>
+    
+    <div class="process-flow">
+      <div class="process-step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <h3>Input Chemical Query</h3>
+          <p>Enter SMILES, CAS numbers, or chemical names to define your target compound or search criteria.</p>
+        </div>
+      </div>
+      
+      <div class="process-arrow">
+        <i class="fas fa-arrow-right"></i>
+      </div>
+      
+      <div class="process-step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <h3>Fingerprint Generation</h3>
+          <p>Convert molecular structures into searchable 2048-bit fingerprints for efficient comparison.</p>
+        </div>
+      </div>
+      
+      <div class="process-arrow">
+        <i class="fas fa-arrow-right"></i>
+      </div>
+      
+      <div class="process-step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <h3>Vector Database Search</h3>
+          <p>Perform high-speed similarity searches using Milvus vector database to find candidate compounds.</p>
+        </div>
+      </div>
+      
+      <div class="process-arrow">
+        <i class="fas fa-arrow-right"></i>
+      </div>
+
+      <div class="process-step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <h3>Compute Properties</h3>
+          <p>Calculate thermophysical properties, toxicity, and molecular descriptors using RDKit and Mordred.</p>
+        </div>
+      </div>
+      
+      <div class="process-arrow">
+        <i class="fas fa-arrow-right"></i>
+      </div>
+      
+      <div class="process-step">
+        <div class="step-number">5</div>
+        <div class="step-content">
+          <h3>Results & Visualization</h3>
+          <p>Explore ranked results with interactive visualizations, property comparisons, and detailed analysis.</p>
+        </div>
+      </div>
+      
+      <div class="process-arrow">
+        <i class="fas fa-arrow-right"></i>
+      </div>
+      
+      <div class="process-step">
+        <div class="step-number">6</div>
+        <div class="step-content">
+          <h3>Download Results</h3>
+          <p>Access automated PDF reports, CSV data exports, and comprehensive analysis documentation.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+
+<!-- Getting Started -->
+<section class="getting-started">
+  <div class="container">
+    <div class="section-header">
+      <h2>Getting Started</h2>
+      <p>Choose your preferred way to use the Chemical Recommender System</p>
+    </div>
+    
+    <div class="start-options">
+      <div class="option-card web-app">
+        <div class="option-header">
+          <i class="fas fa-globe"></i>
+          <h3>Web Application</h3>
+        </div>
+        <p>User-friendly web interface for interactive chemical searches and analysis.</p>
+        <ul class="option-features">
+          <li><i class="fas fa-check"></i> Interactive search interface</li>
+          <li><i class="fas fa-check"></i> Real-time results visualization</li>
+          <li><i class="fas fa-check"></i> Property comparison tools</li>
+          <li><i class="fas fa-check"></i> Export capabilities</li>
+        </ul>
+        <div class="button-container">
+          <a href="/search" class="option-button">
+            <i class="fas fa-search"></i>
+            Search
+          </a>
+          <a href="https://github.com/sandialabs/chemical-recommender-system" target="_blank" class="option-button github-link">
+            <i class="fab fa-github"></i>
+            View on GitHub
+          </a>
+        </div>
+      </div>
+      
+      <div class="option-card cli-app">
+        <div class="option-header">
+          <i class="fas fa-terminal"></i>
+          <h3>Command Line Interface</h3>
+        </div>
+        <p>Powerful CLI for batch processing and custom model integration.</p>
+        <ul class="option-features">
+          <li><i class="fas fa-check"></i> Batch processing capabilities</li>
+          <li><i class="fas fa-check"></i> Custom model integration</li>
+          <li><i class="fas fa-check"></i> Scriptable workflows</li>
+          <li><i class="fas fa-check"></i> Advanced configuration</li>
+        </ul>
+        <div class="cli-commands">
+          <div class="command-group">
+            <label>Quick Start:</label>
+            <code>docker compose up -d</code>
+          </div>
+          <div class="command-group">
+            <label>Access Shell:</label>
+            <code>docker exec -it CRS /bin/bash</code>
+          </div>
+          <div class="command-group">
+            <label>Get Help:</label>
+            <code>python src/main.py -h</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
