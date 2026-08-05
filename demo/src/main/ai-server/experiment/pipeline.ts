@@ -1,11 +1,15 @@
 import { model } from '../model'
 import type {
   ComplianceAnalysis,
+  ComprehensiveAnalysis,
   DocumentExtraction,
+  ExperimentPhaseVariable,
   OptimizationSuggestion,
+  PhaseSummary,
   ReproductionAssessment,
   StepConditions,
-  VariableEffect
+  VariableEffect,
+  VariableType
 } from '../type'
 
 /**
@@ -153,6 +157,9 @@ const EXTRACT_SYSTEM =
   '  - 反应方程式用 $\\ce{}$ 且箭头写为 ->（如 $\\ce{2H2 + O2 -> 2H2O}$），反应物与生成物只写化学式，禁止中文汉字；\n' +
   '  - 单位/次数/化学位移等数学量用 LaTeX（如 $cm^{-1}$、$\\delta$ 7.26），禁止 cm^-1、δ-这种不规范写法；\n' +
   '  - JSON 字符串中的反斜杠必须写成双反斜杠（如 \\\\ce{H2O}），否则 JSON 解析会失败。\n' +
+  '【步骤铁律】步骤必须互斥：同一物理操作（含目的与条件）只能出现一次，不得因摘要/正文重复描述而拆分或复述；' +
+  '若两步标题或描述在语义上等价（如"加铜粉"与"一次性加入铜粉"、摘要与实验部分的同一操作），只保留信息最全的一条；' +
+  '步骤按实际执行顺序编号（step_no 从 1 连续递增），不得跳号或重复。\n' +
   '输出 JSON 必须符合以下结构：\n' +
   `{
     "principle": "实验原理（含 $\\ce{}$ 格式化学式）",
@@ -207,6 +214,94 @@ function normalizeStepConditions(raw: unknown): StepConditions {
   return {}
 }
 
+/** 归一化步骤文本：去空白/标点/数字/化学标记，仅保留核心语义字符（用于相似度比较） */
+function normalizeStepText(s: string): string {
+  return String(s ?? '')
+    .replace(/[\s\u3000，。；、：（）()【】\[\]{}·．.、—→<>=~*$\\/0-9]/g, '')
+    .replace(/ce/gi, '')
+    .toLowerCase()
+}
+
+/** 编辑距离（Levenshtein，带长度上限保护） */
+function levenshtein(a: string, b: string): number {
+  const MAX = 120
+  const sa = a.length > MAX ? a.slice(0, MAX) : a
+  const sb = b.length > MAX ? b.slice(0, MAX) : b
+  if (!sa.length) return sb.length
+  if (!sb.length) return sa.length
+  const m = sa.length
+  const n = sb.length
+  const dp: number[] = new Array(n + 1)
+  for (let j = 0; j <= n; j++) dp[j] = j
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0]
+    dp[0] = i
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j]
+      dp[j] = Math.min(
+        dp[j] + 1, // 删除
+        dp[j - 1] + 1, // 插入
+        prev + (sa[i - 1] === sb[j - 1] ? 0 : 1) // 替换
+      )
+      prev = tmp
+    }
+  }
+  return dp[n]
+}
+
+/**
+ * 步骤去重（v3 问题①）：
+ * - 标题归一化后相同 → 判定重复；
+ * - 标题/描述编辑距离高度相似（归一化文本长度>4/10 且差异比例<阈值）→ 判定重复；
+ * - 保留描述更长的一条；去重后重排 step_no 为 1..N 连续。
+ */
+export function dedupeSteps<T extends { step_no?: number; title?: string; description?: string }>(steps: T[]): T[] {
+  const arr = Array.isArray(steps) ? steps : []
+  const kept: Array<{ normTitle: string; normDesc: string; step: T }> = []
+  for (const s of arr) {
+    const normTitle = normalizeStepText(String(s.title ?? ''))
+    const normDesc = normalizeStepText(String(s.description ?? ''))
+    let dupIndex = -1
+    for (let i = 0; i < kept.length; i++) {
+      const k = kept[i]
+      // 标题相同
+      if (normTitle && k.normTitle && normTitle === k.normTitle) {
+        dupIndex = i
+        break
+      }
+      // 标题编辑距离相似（长度>4）
+      if (normTitle && k.normTitle && normTitle.length > 4 && k.normTitle.length > 4) {
+        const d = levenshtein(normTitle, k.normTitle)
+        if (d / Math.max(normTitle.length, k.normTitle.length) < 0.2) {
+          dupIndex = i
+          break
+        }
+      }
+      // 描述编辑距离相似（长度>10）
+      if (normDesc && k.normDesc && normDesc.length > 10 && k.normDesc.length > 10) {
+        const d = levenshtein(normDesc, k.normDesc)
+        if (d / Math.max(normDesc.length, k.normDesc.length) < 0.15) {
+          dupIndex = i
+          break
+        }
+      }
+    }
+    if (dupIndex >= 0) {
+      // 保留描述更长的一条
+      const existing = kept[dupIndex]
+      const existingDesc = String(existing.step.description ?? '')
+      const newDesc = String(s.description ?? '')
+      if (newDesc.length > existingDesc.length) {
+        kept[dupIndex] = { normTitle, normDesc, step: s }
+      }
+    } else {
+      kept.push({ normTitle, normDesc, step: s })
+    }
+  }
+  // 重排 step_no
+  return kept.map(({ step }, idx) => ({ ...step, step_no: idx + 1 })) as T[]
+}
+
 export async function extractDocument(docText: string): Promise<DocumentExtraction> {
   console.log('[Pipeline] extractDocument 开始:', { docLen: docText.length })
   try {
@@ -223,12 +318,15 @@ export async function extractDocument(docText: string): Promise<DocumentExtracti
       phases: Array.isArray(result.phases) ? result.phases.length : 0,
       summaryLen: (result.summary ?? '').length
     })
+    // v3 问题①：LLM 输出步骤去重（标题/描述相似度）并重排 step_no
+    const rawSteps = Array.isArray(result.steps)
+      ? result.steps.map((s) => ({ ...s, conditions: normalizeStepConditions(s.conditions) }))
+      : []
+    const steps = dedupeSteps(rawSteps)
     return {
       principle: result.principle ?? '',
       materials: Array.isArray(result.materials) ? result.materials : [],
-      steps: Array.isArray(result.steps)
-        ? result.steps.map((s) => ({ ...s, conditions: normalizeStepConditions(s.conditions) }))
-        : [],
+      steps,
       instruments: Array.isArray(result.instruments) ? result.instruments : [],
       characterizations: Array.isArray(result.characterizations) ? result.characterizations : [],
       concerns: Array.isArray(result.concerns) ? result.concerns : [],
@@ -443,4 +541,112 @@ export async function generatePaper(context: string): Promise<{ title: string; c
 function clamp(n: number): number {
   if (!Number.isFinite(n)) return 0
   return Math.max(0, Math.min(100, Math.round(n)))
+}
+
+// ==================== 阶段小结（v0.7，§7.7） ====================
+
+const STAGE_SUMMARY_SYSTEM =
+  '你是化学实验复现助手。根据某阶段的预期、记录与现象，生成该阶段的阶段小结，输出严格 JSON：\n' +
+  `{
+    "results": "本阶段结果汇总（数据/现象）",
+    "compliance": "符合预期情况（百分比/是否预期）",
+    "anomalies": "异常与偏差",
+    "lessons": "经验教训",
+    "next_advice": "下一步建议（是否需调整方案/直接放行）"
+  }`
+
+/** 生成阶段小结（用户点击"生成小结"后由主进程/工具调用，写入 ExperimentPhase.summary） */
+export async function generateStageSummary(context: string): Promise<PhaseSummary> {
+  console.log('[Pipeline] generateStageSummary 开始:', { contextLen: context.length })
+  try {
+    const user = `该阶段的上下文：\n\n${context.slice(0, 12000)}`
+    const result = await callJson<PhaseSummary>(STAGE_SUMMARY_SYSTEM, user)
+    return {
+      results: result?.results ?? '',
+      compliance: result?.compliance ?? '',
+      anomalies: result?.anomalies ?? '',
+      lessons: result?.lessons ?? '',
+      next_advice: result?.next_advice ?? ''
+    }
+  } catch (err) {
+    console.error('[Pipeline] generateStageSummary 失败:', err)
+    throw err
+  }
+}
+
+// ==================== 阶段实验变量生成（v0.9，§7.12） ====================
+
+const PHASE_VARIABLE_SYSTEM =
+  '你是化学实验专家。基于文献中某个实验阶段的描述，列出该阶段可记录/可控的实验变量（温度/时间/配比/催化剂/气氛/搅拌/用量等），输出严格 JSON 数组：\n' +
+  `[{
+    "key": "变量标识（英文小写+下划线，如 reaction_temp）",
+    "name": "变量名称（中文，如 反应温度）",
+    "type": "temperature|time|concentration|ratio|catalyst|atmosphere|stirring|pressure|ph|amount|other",
+    "unit": "单位（°C/min/mol/L 等）",
+    "default_value": "文献给出的默认取值",
+    "description": "变量作用说明"
+  }]`
+
+/** 依据文献为单个阶段生成实验变量清单 */
+export async function generatePhaseVariables(
+  phaseName: string,
+  phaseExpected: string,
+  docExtractText: string
+): Promise<Array<Omit<ExperimentPhaseVariable, 'id' | 'project_id' | 'phase_id' | 'branch_id' | 'created_at'>>> {
+  console.log('[Pipeline] generatePhaseVariables 开始:', { phaseName })
+  try {
+    const user =
+      `【阶段名称】${phaseName}\n【阶段预期】${phaseExpected || '（无）'}\n\n【文献相关段落】\n${docExtractText.slice(0, 6000)}`
+    const result = await callJson<Array<Record<string, unknown>>>(PHASE_VARIABLE_SYSTEM, user)
+    const list = Array.isArray(result) ? result : []
+    return list.map((v, idx) => ({
+      key: typeof v?.key === 'string' && v.key ? v.key : `var-${idx}`,
+      name: typeof v?.name === 'string' ? v.name : `变量${idx + 1}`,
+      type: (v?.type as VariableType) || 'other',
+      unit: typeof v?.unit === 'string' ? v.unit : '',
+      default_value: typeof v?.default_value === 'string' ? v.default_value : '',
+      current_value: '',
+      options: '[]',
+      is_agent_generated: 1,
+      description: typeof v?.description === 'string' ? v.description : '',
+      sort_order: idx
+    }))
+  } catch (err) {
+    console.error('[Pipeline] generatePhaseVariables 失败:', err)
+    return []
+  }
+}
+
+// ==================== 综合对比分析（v0.8，§7.9） ====================
+
+const COMPREHENSIVE_SYSTEM =
+  '你是化学实验综合分析专家。综合"各并行实验分叉的真实数据、AI 预测结果与文献内容"，回答用户问题。\n' +
+  '要求：逐分支列出关键结果/符合度/优缺点，给出对比结论 + 文献佐证 + 最终建议；' +
+  '分叉数据缺失（未完成/放弃）时须明确标注"该分支数据不完整"。输出严格 JSON：\n' +
+  `{
+    "summary": "综合分析结论（Markdown）",
+    "branch_compare": [{ "branch_id": 数字或null, "name": "分支/实验名", "key_results": "关键结果", "compliance": "符合预期情况", "pros_cons": "优缺点" }],
+    "literature_support": "文献支撑（引用文献原文/图数据）",
+    "conclusion": "最终结论与建议"
+  }`
+
+/** 综合所有分叉的真实数据 + AI 预测结果 + 文献内容回答用户问题 */
+export async function comprehensiveAnalysis(
+  context: string,
+  question: string
+): Promise<ComprehensiveAnalysis> {
+  console.log('[Pipeline] comprehensiveAnalysis 开始:', { contextLen: context.length })
+  try {
+    const user = `用户问题：${question}\n\n项目综合上下文（各分叉数据 + 预测 + 文献）：\n\n${context.slice(0, 30000)}`
+    const result = await callJson<ComprehensiveAnalysis>(COMPREHENSIVE_SYSTEM, user)
+    return {
+      summary: result?.summary ?? '',
+      branch_compare: Array.isArray(result?.branch_compare) ? result.branch_compare : [],
+      literature_support: result?.literature_support ?? '',
+      conclusion: result?.conclusion ?? ''
+    }
+  } catch (err) {
+    console.error('[Pipeline] comprehensiveAnalysis 失败:', err)
+    throw err
+  }
 }

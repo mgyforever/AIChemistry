@@ -30,9 +30,50 @@ let chart: echarts.ECharts | null = null
 
 const isLight = computed(() => themeStore.mode === 'light')
 
+/** 将字符串形式的 renderItem（经 JSON/IPC 序列化后函数变字符串）还原为函数；失败返回 undefined */
+function reviveRenderItem(src: string): (() => unknown) | undefined {
+  try {
+    const trimmed = src.trim()
+    if (trimmed.startsWith('function') || trimmed.startsWith('(') || trimmed.includes('=>')) {
+      const fn = new Function(`return (${trimmed})`)()
+      return typeof fn === 'function' ? (fn as () => unknown) : undefined
+    }
+  } catch (err) {
+    console.warn('[ChartCard] renderItem 字符串还原函数失败:', err)
+  }
+  return undefined
+}
+
+/**
+ * 净化 Agent 生成的 echartsOption：
+ * - 还原字符串形式的 renderItem（JSON 序列化丢失函数）；
+ * - 还原失败时删除该字段并将 series 降级为安全类型，避免 ECharts 崩溃。
+ */
+function sanitizeOption(value: unknown, isSeries = false): unknown {
+  if (Array.isArray(value)) return value.map((v) => sanitizeOption(v, isSeries))
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === 'renderItem' && typeof v === 'string') {
+        const fn = reviveRenderItem(v)
+        if (fn) {
+          out[k] = fn
+          continue
+        }
+        // 还原失败：删除 renderItem，并把该 series 降级为 line
+        if (isSeries) out['type'] = 'line'
+        continue
+      }
+      out[k] = sanitizeOption(v, k === 'series')
+    }
+    return out
+  }
+  return value
+}
+
 function applyOption(): void {
   if (!chart || !props.spec.echartsOption) return
-  const option = JSON.parse(JSON.stringify(props.spec.echartsOption)) as Record<string, unknown>
+  const option = sanitizeOption(JSON.parse(JSON.stringify(props.spec.echartsOption))) as Record<string, unknown>
   // 跟随主题的基础样式
   const textColor = isLight.value ? '#0f172a' : '#cdd6f4'
   const muted = isLight.value ? '#64748b' : '#6c7086'
@@ -40,7 +81,11 @@ function applyOption(): void {
   option.textStyle = { color: textColor }
   option.xAxis = Array.isArray(option.xAxis) ? option.xAxis.map((a: Record<string, unknown>) => ({ ...a, ...axis })) : option.xAxis
   option.yAxis = Array.isArray(option.yAxis) ? option.yAxis.map((a: Record<string, unknown>) => ({ ...a, ...axis })) : option.yAxis
-  chart.setOption(option, true)
+  try {
+    chart.setOption(option, true)
+  } catch (err) {
+    console.error('[ChartCard] 渲染图表失败:', err)
+  }
 }
 
 function resize(): void {

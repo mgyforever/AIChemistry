@@ -13,6 +13,9 @@ export const PredictionDao = {
   create(
     data: {
       project_id: number
+      branch_id?: number | null
+      step_id?: number | null
+      step_experiment_id?: number | null
       name: string
       base_flow: string
       variables: string
@@ -26,11 +29,14 @@ export const PredictionDao = {
     const r = db
       .prepare(
         `INSERT INTO prediction_experiments
-         (project_id, name, base_flow, variables, predicted_result, property_analysis, theory_basis)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+         (project_id, branch_id, step_id, step_experiment_id, name, base_flow, variables, predicted_result, property_analysis, theory_basis)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.project_id,
+        data.branch_id ?? null,
+        data.step_id ?? null,
+        data.step_experiment_id ?? null,
         data.name,
         data.base_flow,
         data.variables,

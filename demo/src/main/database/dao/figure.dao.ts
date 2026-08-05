@@ -17,10 +17,26 @@ export const FigureDao = {
       .all(projectId) as DocumentFigure[]
   },
 
+  /** v3 问题⑧：按步骤查询归属图表 */
+  findByStep(stepId: number): DocumentFigure[] {
+    const db = getSQLite()
+    return db
+      .prepare('SELECT * FROM document_figures WHERE step_id = ? ORDER BY id ASC')
+      .all(stepId) as DocumentFigure[]
+  },
+
+  /** 将某文献的全部图表归属到项目（文献关联到项目时调用，供图表面板按项目查询） */
+  assignToProject(documentId: number, projectId: number): void {
+    const db = getSQLite()
+    db.prepare('UPDATE document_figures SET project_id = ? WHERE document_id = ?').run(projectId, documentId)
+    console.log('[DAO] FigureDao.assignToProject, document_id:', documentId, ', project_id:', projectId)
+  },
+
   create(
     data: {
       document_id: number
       project_id?: number | null
+      step_id?: number | null
       figure_index?: number
       page_number?: number
       figure_type?: string
@@ -43,12 +59,13 @@ export const FigureDao = {
     const r = db
       .prepare(
         `INSERT INTO document_figures
-         (document_id, project_id, figure_index, page_number, figure_type, caption, structured_data, ocr_text, image_path, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (document_id, project_id, step_id, figure_index, page_number, figure_type, caption, structured_data, ocr_text, image_path, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.document_id,
         data.project_id ?? null,
+        data.step_id ?? null,
         data.figure_index ?? 0,
         data.page_number ?? 0,
         data.figure_type ?? '',
@@ -69,6 +86,7 @@ export const FigureDao = {
     const values: unknown[] = []
     const allowed = [
       'project_id',
+      'step_id',
       'figure_type',
       'caption',
       'structured_data',

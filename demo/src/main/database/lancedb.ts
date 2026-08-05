@@ -16,11 +16,35 @@ export function getLanceDB(): lancedb.Connection {
   return db
 }
 
+/** 瞬时 IO 错误（Windows 文件锁/杀软扫描，os error 5 拒绝访问）重试 */
+const IO_ERROR_RE = /os error 5|拒绝访问|Access denied|EACCES|LanceError\(IO\)/i
+
+function isTransientIOError(err: unknown): boolean {
+  return err instanceof Error && IO_ERROR_RE.test(err.message)
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 300): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      if (attempt >= retries - 1 || !isTransientIOError(err)) throw err
+      console.warn(
+        `[LanceDB] 瞬时 IO 错误（第 ${attempt + 1}/${retries - 1} 次重试）:`,
+        err instanceof Error ? err.message : err
+      )
+      await new Promise((r) => setTimeout(r, delayMs))
+    }
+  }
+}
+
 export async function createTable(name: string, data: Record<string, unknown>[]): Promise<void> {
   console.log(`[LanceDB] createTable 开始, 表名: ${name}, 数据条数: ${data.length}`)
   try {
-    const conn = getLanceDB()
-    await conn.createTable(name, data)
+    await withRetry(async () => {
+      const conn = getLanceDB()
+      await conn.createTable(name, data)
+    })
     console.log(`[LanceDB] createTable 完成, 表名: ${name}, 写入 ${data.length} 条`)
   } catch (err) {
     console.error(`[LanceDB] createTable 失败, 表名: ${name}:`, err)
@@ -31,9 +55,11 @@ export async function createTable(name: string, data: Record<string, unknown>[])
 export async function addData(tableName: string, data: Record<string, unknown>[]): Promise<void> {
   console.log(`[LanceDB] addData 开始, 表名: ${tableName}, 数据条数: ${data.length}`)
   try {
-    const conn = getLanceDB()
-    const table = await conn.openTable(tableName)
-    await table.add(data)
+    await withRetry(async () => {
+      const conn = getLanceDB()
+      const table = await conn.openTable(tableName)
+      await table.add(data)
+    })
     console.log(`[LanceDB] addData 完成, 表名: ${tableName}, 追加 ${data.length} 条`)
   } catch (err) {
     console.error(`[LanceDB] addData 失败, 表名: ${tableName}:`, err)
@@ -79,9 +105,11 @@ export async function tableExists(name: string): Promise<boolean> {
 export async function deleteRows(tableName: string, filter: string): Promise<void> {
   console.log(`[LanceDB] deleteRows 开始, 表名: ${tableName}, filter: ${filter}`)
   try {
-    const conn = getLanceDB()
-    const table = await conn.openTable(tableName)
-    await table.delete(filter)
+    await withRetry(async () => {
+      const conn = getLanceDB()
+      const table = await conn.openTable(tableName)
+      await table.delete(filter)
+    })
     console.log(`[LanceDB] deleteRows 完成, 表名: ${tableName}, filter: ${filter}`)
   } catch (err) {
     console.error(`[LanceDB] deleteRows 失败, 表名: ${tableName}, filter: ${filter}:`, err)

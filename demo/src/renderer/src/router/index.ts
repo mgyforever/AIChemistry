@@ -1,10 +1,11 @@
-import { createRouter, createMemoryHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
 import Home from '../views/Home.vue'
 import ExperimentLab from '../views/ExperimentLab.vue'
 import ExperimentBuilder from '../views/ExperimentBuilder.vue'
 import ReproductionLab from '../views/ReproductionLab.vue'
+import StepDetailPage from '../views/StepDetailPage.vue'
 
 const routes = [
   {
@@ -27,6 +28,11 @@ const routes = [
     component: ReproductionLab
   },
   {
+    path: '/step-detail',
+    name: 'StepDetailPage',
+    component: StepDetailPage
+  },
+  {
     path: '/login',
     name: 'Login',
     component: Login
@@ -44,7 +50,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createMemoryHistory(),
+  history: createWebHashHistory(),
   routes
 })
 

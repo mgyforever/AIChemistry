@@ -78,8 +78,8 @@
           <PlanPanel v-if="activeTab === 'plan'" :ctx="reproStore.context" />
           <PhasePanel v-else-if="activeTab === 'phase'" :ctx="reproStore.context" />
           <FigurePanel v-else-if="activeTab === 'figure'" :project-id="reproStore.currentProjectId" />
-          <PredictionPanel v-else-if="activeTab === 'prediction'" :project-id="reproStore.currentProjectId" :ctx="reproStore.context" />
           <PaperPanel v-else-if="activeTab === 'paper'" :project-id="reproStore.currentProjectId" :ctx="reproStore.context" />
+          <ReferenceProjectsPanel v-else-if="activeTab === 'reference'" :project-id="reproStore.currentProjectId" />
 
           <!-- tab-body 确认按钮：仅复现方案页显示，确认后进入下一阶段 -->
           <div v-if="activeTab === 'plan' && currentProjectId" class="plan-confirm">
@@ -129,8 +129,8 @@ import ProjectSidebar from '../components/repro/ProjectSidebar.vue'
 import PlanPanel from '../components/repro/PlanPanel.vue'
 import PhasePanel from '../components/repro/PhasePanel.vue'
 import FigurePanel from '../components/repro/FigurePanel.vue'
-import PredictionPanel from '../components/repro/PredictionPanel.vue'
 import PaperPanel from '../components/repro/PaperPanel.vue'
+import ReferenceProjectsPanel from '../components/repro/ReferenceProjectsPanel.vue'
 import AgentPanel from '../components/repro/AgentPanel.vue'
 
 const api = window.api
@@ -141,8 +141,8 @@ const tabs = [
   { key: 'plan', label: '复现方案' },
   { key: 'phase', label: '阶段与记录' },
   { key: 'figure', label: '图表解析' },
-  { key: 'prediction', label: '预测实验' },
-  { key: 'paper', label: '论文' }
+  { key: 'paper', label: '论文' },
+  { key: 'reference', label: '参考项目' }
 ]
 
 const currentProjectId = computed(() => reproStore.currentProjectId)
@@ -374,10 +374,16 @@ function resetWidths(): void {
 onBeforeUnmount(() => {
   if (onMove) window.removeEventListener('mousemove', onMove)
   if (onUp) window.removeEventListener('mouseup', onUp)
+  stopEventListeners?.()
 })
+
+/** 主进程事件监听注销函数（v0.10 §10.4） */
+let stopEventListeners: (() => void) | null = null
 
 onMounted(async () => {
   console.log('[View] ReproductionLab 挂载，开始加载项目列表')
+  // 注册主进程事件监听：步骤/门禁/分叉/入库/共享等状态变更自动刷新（§10.4）
+  stopEventListeners = reproStore.initEventListeners()
   await reproStore.loadProjects()
   // 优先恢复到上次打开的项目（中断续做），否则默认第一个项目
   const lastId = loadLastProjectId()

@@ -4,13 +4,20 @@
     <div v-else class="panel-body">
       <section class="card">
         <h3>文献图表识别（{{ figures.length }}）</h3>
-        <p class="hint">图片通过 DeepSeek-VL2 识别；未配置或失败时标记"待人工确认"，请核对原图与识别结果。</p>
+        <p class="hint">图片通过多模态大模型（SiliconFlow Kimi-K2.6）识别；未配置或失败时标记"待人工确认"，请核对原图与识别结果。</p>
         <div v-if="figures.length" class="figs">
           <div v-for="f in figures" :key="f.id" class="fig">
             <div class="fig-head">
               <span class="fig-type">{{ typeLabel(f.figure_type) }}</span>
+              <span v-if="parsed(f).subtype" class="fig-subtype">{{ parsed(f).subtype }}</span>
               <span class="fig-status" :class="f.status">{{ statusLabel(f.status) }}</span>
             </div>
+            <img
+              v-if="f.image_path && imgSrc(f.image_path)"
+              :src="imgSrc(f.image_path)"
+              class="fig-img"
+              alt="原图"
+            />
             <p v-if="f.caption" class="fig-caption">{{ f.caption }}</p>
             <MarkdownRenderer v-if="parsed(f).description" :content="parsed(f).description || ''" />
             <table v-if="parsed(f).table" class="tbl">
@@ -58,6 +65,7 @@ watch(() => props.projectId, load, { immediate: true })
 interface ParsedFigure {
   table?: string[][]
   smiles?: string
+  subtype?: string
   description?: string
 }
 
@@ -68,6 +76,22 @@ function parsed(f: FigureUI): ParsedFigure {
     console.warn('[Component] FigurePanel 图表结构化数据解析失败')
     return {}
   }
+}
+
+/** 原图本地路径 → data URL（复用 readMedia 模式，缓存避免重复读取） */
+const imgCache = new Map<string, string>()
+const imgLoading = new Set<string>()
+
+function imgSrc(p: string): string {
+  const cached = imgCache.get(p)
+  if (cached) return cached
+  if (imgLoading.has(p)) return ''
+  imgLoading.add(p)
+  void window.api.file.readMedia(p).then((url) => {
+    if (url) imgCache.set(p, url)
+    imgLoading.delete(p)
+  })
+  return ''
 }
 
 function typeLabel(t: string): string {
@@ -99,6 +123,8 @@ function statusLabel(s: string): string {
 .fig { padding: 10px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); }
 .fig-head { display: flex; gap: 6px; margin-bottom: 6px; }
 .fig-type { padding: 2px 8px; border-radius: 6px; font-size: 11px; background: rgba(99, 102, 241, 0.12); color: var(--color-primary-light); }
+.fig-subtype { padding: 2px 8px; border-radius: 6px; font-size: 11px; background: rgba(16, 185, 129, 0.12); color: var(--color-success); }
+.fig-img { display: block; max-width: 100%; max-height: 240px; margin: 0 0 8px; border: 1px solid var(--color-border); border-radius: 8px; object-fit: contain; background: #fff; }
 .fig-status { padding: 2px 8px; border-radius: 6px; font-size: 11px; }
 .fig-status.parsed { color: var(--color-success); background: rgba(34, 197, 94, 0.12); }
 .fig-status.manual { color: var(--color-warning); background: rgba(249, 226, 175, 0.14); }

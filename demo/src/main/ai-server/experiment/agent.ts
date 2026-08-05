@@ -15,7 +15,22 @@ import {
   suggestOptimizationsTool,
   analyzeVariableEffectsTool,
   runPredictionExperimentTool,
-  generatePaperTool
+  generatePaperTool,
+  updateStepStatusTool,
+  generateStageSummaryTool,
+  confirmStageGateTool,
+  createBranchTool,
+  switchBranchTool,
+  finishBranchTool,
+  listPhaseVariablesTool,
+  updatePhaseVariablesTool,
+  saveExperimentEventTool,
+  addProjectLinkTool,
+  removeProjectLinkTool,
+  requestProjectShareTool,
+  respondProjectShareTool,
+  listShareRequestsTool,
+  comprehensiveAnalysisTool
 } from './tools'
 import { extractChartsFromToolOutput } from './charts'
 import type { AiChat, ExperimentAgentRequest } from '../type'
@@ -41,7 +56,22 @@ const agent = createAgent({
     suggestOptimizationsTool,
     analyzeVariableEffectsTool,
     runPredictionExperimentTool,
-    generatePaperTool
+    generatePaperTool,
+    updateStepStatusTool,
+    generateStageSummaryTool,
+    confirmStageGateTool,
+    createBranchTool,
+    switchBranchTool,
+    finishBranchTool,
+    listPhaseVariablesTool,
+    updatePhaseVariablesTool,
+    saveExperimentEventTool,
+    addProjectLinkTool,
+    removeProjectLinkTool,
+    requestProjectShareTool,
+    respondProjectShareTool,
+    listShareRequestsTool,
+    comprehensiveAnalysisTool
   ],
   systemPrompt: experimentSystemPrompt
 })

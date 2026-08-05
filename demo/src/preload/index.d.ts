@@ -71,6 +71,45 @@ interface ExperimentAPI {
   customData(projectId: number): Promise<unknown[]>
   addCustomData(projectId: number, data: Record<string, unknown>): Promise<{ id: number }>
   deleteCustomData(id: number): Promise<void>
+  // ---- v0.7：步骤 DAG 与阶段门禁 ----
+  updateStepStatus(id: number, status: string): Promise<void>
+  readySteps(projectId: number, branchId: number | null): Promise<unknown[]>
+  recomputeSteps(projectId: number, branchId: number | null): Promise<void>
+  // v3 问题④：步骤增删改
+  updateStep(id: number, patch: Record<string, unknown>): Promise<void>
+  addStep(projectId: number, data: Record<string, unknown>): Promise<{ id: number }>
+  deleteStep(id: number): Promise<void>
+  // v3 问题⑥：步骤级并行实验变体
+  stepExperiments(projectId: number): Promise<unknown[]>
+  createStepExperiment(data: Record<string, unknown>): Promise<{ id: number }>
+  updateStepExperiment(id: number, patch: Record<string, unknown>): Promise<void>
+  deleteStepExperiment(id: number): Promise<void>
+  writePhaseSummary(id: number, patch: { summary: string; status: 'pending_review' }): Promise<void>
+  summaryAi(projectId: number, phaseId: number): Promise<string>
+  confirmGate(id: number, decision: 'pass' | 'back', gateStatus: string, status?: string): Promise<void>
+  // ---- v0.8：并行实验分叉 ----
+  branches(projectId: number): Promise<unknown[]>
+  createBranch(data: Record<string, unknown>): Promise<{ id: number }>
+  finishBranch(branchId: number | null, projectId?: number): Promise<void>
+  branchPhases(branchId: number): Promise<unknown[]>
+  branchRecords(branchId: number): Promise<unknown[]>
+  // ---- v0.9：阶段实验变量 / 实验事件 ----
+  phaseVariables(phaseId: number, branchId: number | null): Promise<unknown[]>
+  upsertPhaseVariable(data: Record<string, unknown>): Promise<{ id: number }>
+  deletePhaseVariable(id: number): Promise<void>
+  events(projectId: number, phaseId: number | null, branchId: number | null): Promise<unknown[]>
+  addEvent(data: Record<string, unknown>): Promise<{ id: number }>
+  deleteEvent(id: number): Promise<void>
+}
+
+// ---- v0.9/v0.10：项目间共享 ----
+interface LinkAPI {
+  list(projectId: number): Promise<unknown[]>
+  add(projectId: number, refProjectId: number, scope?: string): Promise<{ id: number }>
+  remove(id: number): Promise<void>
+  requestList(projectId: number, asRequester: boolean): Promise<unknown[]>
+  requestCreate(data: Record<string, unknown>): Promise<{ id: number }>
+  requestResolve(id: number, decision: 'approve' | 'reject'): Promise<void>
 }
 
 interface PaperAPI {
@@ -111,15 +150,33 @@ interface AIChatAPI {
   saveRecord(input: {
     project_id: number
     phase_id?: number
+    step_id?: number
+    branch_id?: number | null
+    step_experiment_id?: number | null
     name: string
     content: string
     data_json?: Record<string, unknown>
+    attachments?: string[]
+    chart_data?: Record<string, unknown>
   }): Promise<{ text: string; charts: unknown[]; compliance: unknown; recordId: number }>
 }
 
 interface FileAPI {
   open(): Promise<string[]>
   import(paths: string[]): Promise<unknown[]>
+  // v0.9：图片/视频附件
+  pickMedia(): Promise<string[]>
+  importMedia(projectId: number, sourcePaths: string[]): Promise<string[]>
+  cleanupMedia(projectId: number): Promise<void>
+  openMedia(filePath: string): Promise<string>
+  readMedia(filePath: string): Promise<string | null>
+}
+
+/** v3：步骤详情窗口 API（独立 Electron 窗口） */
+interface StepDetailWindowAPI {
+  openStepDetail(projectId: number, stepId: number): Promise<void>
+  claimStepDetailInit(): Promise<{ projectId: number; stepId: number } | null>
+  onStepDetailEvent(channel: string, callback: (payload: unknown) => void): () => void
 }
 
 interface DatabaseAPI {
@@ -131,12 +188,16 @@ interface DatabaseAPI {
     project: ProjectAPI
     reproduction: ReproductionAPI
     experiment: ExperimentAPI
+    link: LinkAPI
     paper: PaperAPI
     figure: FigureAPI
     prediction: PredictionAPI
   }
   ai: AIChatAPI
   file: FileAPI
+  window: StepDetailWindowAPI
+  /** 主进程事件监听（v0.10 §10.4），返回注销函数 */
+  onExperimentEvent(channel: string, callback: (payload: unknown) => void): () => void
 }
 
 declare global {

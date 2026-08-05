@@ -53,6 +53,12 @@ export interface StepUI {
   conditions: string | Record<string, string>
   duration: string
   notes: string
+  /** v0.7：依赖步骤 id（DAG） */
+  depends_on: number[]
+  /** v0.7：步骤状态机 pending/ready/in_progress/completed/skipped */
+  status: string
+  /** v0.8：所属分叉，空 = 主线 */
+  branch_id: number | null
 }
 export interface ReactionUI {
   id: number
@@ -112,11 +118,22 @@ export interface PhaseUI {
   expected: string
   metrics_json: string
   created_at: string
+  /** v0.8：所属分叉，空 = 主线 */
+  branch_id: number | null
+  /** v0.7：门禁状态 locked/open/passed */
+  gate_status: string
+  /** v0.7：阶段小结（PhaseSummary JSON / Markdown） */
+  summary: string | null
+  summary_created_at: string | null
+  /** v0.7：是否允许与后续阶段并行 */
+  can_parallel: number
 }
 export interface RecordUI {
   id: number
   project_id: number
   phase_id: number | null
+  /** v3：所属步骤 */
+  step_id: number | null
   record_type: string
   name: string
   content: string
@@ -127,11 +144,25 @@ export interface RecordUI {
   cause_analysis: string
   detail: string
   created_at: string
+  /** v0.8：所属分叉，空 = 主线 */
+  branch_id: number | null
+  /** v3：所属步骤级并行实验变体 */
+  step_experiment_id: number | null
+  /** v0.9：附件（图片/视频本地路径，JSON） */
+  attachments: string
+  /** v0.9：ECharts 统计图录数 JSON */
+  chart_data: string
+  /** v0.9：向量化状态 pending/indexed */
+  vector_status: string
 }
 export interface CustomDataUI {
   id: number
   project_id: number
   record_id: number | null
+  /** v3：所属步骤 */
+  step_id: number | null
+  /** v3：所属步骤级并行实验变体 */
+  step_experiment_id: number | null
   data_name: string
   data_type: string
   data_value: string
@@ -149,6 +180,12 @@ export interface PredictionUI {
   property_analysis: string
   theory_basis: string
   created_at: string
+  /** v0.8：关联分叉，空 = 主线 */
+  branch_id: number | null
+  /** v3：关联步骤 */
+  step_id: number | null
+  /** v3：关联步骤级并行实验变体 */
+  step_experiment_id: number | null
 }
 export interface PaperUI {
   id: number
@@ -173,6 +210,75 @@ export interface FigureUI {
   created_at: string
 }
 
+// ---- v0.9/v0.10：阶段变量 / 实验事件 / 分叉 / 项目共享（与主进程 type.ts 对应） ----
+export interface PhaseVariableUI {
+  id: number
+  project_id: number
+  phase_id: number
+  /** v3：所属步骤 */
+  step_id: number | null
+  branch_id: number | null
+  /** v3：所属步骤级并行实验变体 */
+  step_experiment_id: number | null
+  key: string
+  name: string
+  type: string
+  unit: string
+  default_value: string
+  current_value: string
+  options: string
+  is_agent_generated: number
+  description: string
+  sort_order: number
+  created_at: string
+}
+export interface ExperimentEventUI {
+  id: number
+  project_id: number
+  branch_id: number | null
+  phase_id: number | null
+  /** v3：所属步骤 */
+  step_id: number | null
+  /** v3：所属步骤级并行实验变体 */
+  step_experiment_id: number | null
+  name: string
+  content: string
+  media_paths: string
+  created_at: string
+}
+export interface BranchUI {
+  id: number
+  project_id: number
+  parent_branch_id: number | null
+  name: string
+  description: string
+  variable_overrides: string
+  fork_phase_id: number | null
+  index_status: string
+  created_at: string
+}
+export interface ProjectLinkUI {
+  id: number
+  project_id: number
+  ref_project_id: number
+  ref_name: string
+  scope: string
+  created_at: string
+}
+/** v3：步骤级并行实验变体（问题⑥，与主进程 StepExperiment 对应） */
+export interface StepExperimentUI {
+  id: number
+  project_id: number
+  step_id: number
+  branch_id: number | null
+  parent_experiment_id: number | null
+  name: string
+  description: string
+  variable_overrides: string
+  status: string
+  created_at: string
+}
+
 /** 项目全量上下文（与主进程 db:project-context 对应） */
 export interface ProjectContextUI {
   project: ProjectUI
@@ -188,6 +294,11 @@ export interface ProjectContextUI {
   phases: PhaseUI[]
   records: RecordUI[]
   customData: CustomDataUI[]
+  phaseVariables: PhaseVariableUI[]
+  events: ExperimentEventUI[]
+  branches: BranchUI[]
+  stepExperiments: StepExperimentUI[]
+  links: ProjectLinkUI[]
   predictions: PredictionUI[]
   papers: PaperUI[]
   summaries: string[]
@@ -325,6 +436,26 @@ export const reproStore = reactive({
       '[Store] repro refreshContext 完成:',
       `材料${this.context.materials.length} 步骤${this.context.steps.length} 阶段${this.context.phases.length} 记录${this.context.records.length} 预测${this.context.predictions.length} 论文${this.context.papers.length}`
     )
+  },
+
+  /** 主进程事件监听（v0.10 §10.4）：步骤/门禁/分叉/入库/共享等状态变更后自动刷新（不依赖 AI 对话流） */
+  initEventListeners(): () => void {
+    const channels = [
+      'experiment:state-changed',
+      'experiment:index-done',
+      'experiment:share-request-received',
+      'experiment:share-resolved'
+    ]
+    const unsubscribes = channels.map((channel) =>
+      api.onExperimentEvent(channel, (payload) => {
+        const p = (payload ?? {}) as { projectId?: number; kind?: string }
+        if (p.projectId !== undefined && p.projectId === this.currentProjectId) {
+          console.log('[Store] repro 收到主进程事件:', channel, p.kind ?? '', '项目ID:', p.projectId)
+          void this.refreshContext()
+        }
+      })
+    )
+    return () => unsubscribes.forEach((unsub) => unsub())
   },
 
   async createProject(name: string, description = ''): Promise<number> {

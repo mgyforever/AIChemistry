@@ -1,5 +1,5 @@
 import { getSQLite } from '../sqlite'
-import type { Project, ProjectDocument } from '../../ai-server/type'
+import type { Project, ProjectDocument, ProjectLink, ProjectLinkRequest, LinkRequestStatus } from '../../ai-server/type'
 
 /** 实验项目 DAO（能力①） */
 export const ProjectDao = {
@@ -87,6 +87,14 @@ export const ProjectDao = {
       db.prepare('DELETE FROM experiment_phases WHERE project_id = ?').run(id)
       db.prepare('DELETE FROM experiment_records WHERE project_id = ?').run(id)
       db.prepare('DELETE FROM experiment_custom_data WHERE project_id = ?').run(id)
+      // 3b. v0.8/0.9/0.10 新增：分叉/阶段变量/实验事件/共享关系/共享请求
+      db.prepare('DELETE FROM project_branches WHERE project_id = ?').run(id)
+      db.prepare('DELETE FROM experiment_phase_variables WHERE project_id = ?').run(id)
+      db.prepare('DELETE FROM experiment_events WHERE project_id = ?').run(id)
+      db.prepare('DELETE FROM project_links WHERE project_id = ? OR ref_project_id = ?').run(id, id)
+      db.prepare('DELETE FROM project_link_requests WHERE project_id = ? OR target_project_id = ?').run(id, id)
+      // 3c. v3（修改计划⑥）：步骤级并行实验变体
+      db.prepare('DELETE FROM step_experiments WHERE project_id = ?').run(id)
       // 4. 论文 / 预测实验
       db.prepare('DELETE FROM papers WHERE project_id = ?').run(id)
       db.prepare('DELETE FROM prediction_experiments WHERE project_id = ?').run(id)
@@ -147,5 +155,123 @@ export const ProjectDocumentDao = {
     console.log('[DAO] ProjectDocumentDao.delete, id:', id)
     const db = getSQLite()
     db.prepare('DELETE FROM project_documents WHERE id = ?').run(id)
+  }
+}
+
+/** 参考项目关系 DAO（v0.9，见实施计划 §4.5） */
+export const ProjectLinkDao = {
+  findByProject(projectId: number): ProjectLink[] {
+    const db = getSQLite()
+    return db
+      .prepare('SELECT * FROM project_links WHERE project_id = ? ORDER BY id ASC')
+      .all(projectId) as ProjectLink[]
+  },
+  /** 被参考关系（查询某项目被哪些项目参考） */
+  findByRefProject(refProjectId: number): ProjectLink[] {
+    const db = getSQLite()
+    return db
+      .prepare('SELECT * FROM project_links WHERE ref_project_id = ? ORDER BY id ASC')
+      .all(refProjectId) as ProjectLink[]
+  },
+  addLink(projectId: number, refProjectId: number, scope = 'documents'): { id: number } {
+    console.log('[DAO] ProjectLinkDao.addLink, projectId:', projectId, ', ref:', refProjectId, ', scope:', scope)
+    const db = getSQLite()
+    const ref = db.prepare('SELECT name FROM projects WHERE id = ?').get(refProjectId) as { name: string } | undefined
+    const r = db
+      .prepare('INSERT INTO project_links (project_id, ref_project_id, ref_name, scope) VALUES (?, ?, ?, ?)')
+      .run(projectId, refProjectId, ref?.name ?? '', scope)
+    return { id: r.lastInsertRowid as number }
+  },
+  updateScope(id: number, scope: string): void {
+    const db = getSQLite()
+    db.prepare('UPDATE project_links SET scope = ? WHERE id = ?').run(scope, id)
+  },
+  removeLink(id: number): void {
+    const db = getSQLite()
+    db.prepare('DELETE FROM project_links WHERE id = ?').run(id)
+  }
+}
+
+/** 共享请求 DAO（v0.10：请求方 → 项目作者审批） */
+export const ProjectLinkRequestDao = {
+  /** 我方收到（待审批/已审批） */
+  received(targetProjectId: number): ProjectLinkRequest[] {
+    const db = getSQLite()
+    return db
+      .prepare('SELECT * FROM project_link_requests WHERE target_project_id = ? ORDER BY created_at DESC, id DESC')
+      .all(targetProjectId) as ProjectLinkRequest[]
+  },
+  /** 我方发起 */
+  sent(projectId: number): ProjectLinkRequest[] {
+    const db = getSQLite()
+    return db
+      .prepare('SELECT * FROM project_link_requests WHERE project_id = ? ORDER BY created_at DESC, id DESC')
+      .all(projectId) as ProjectLinkRequest[]
+  },
+  findById(id: number): ProjectLinkRequest | undefined {
+    const db = getSQLite()
+    return db.prepare('SELECT * FROM project_link_requests WHERE id = ?').get(id) as
+      | ProjectLinkRequest
+      | undefined
+  },
+  create(data: {
+    project_id: number
+    target_project_id: number
+    scope: string
+    reason?: string
+  }): { id: number } {
+    console.log('[DAO] ProjectLinkRequestDao.create, data:', JSON.stringify(data))
+    const db = getSQLite()
+    const target = db.prepare('SELECT name FROM projects WHERE id = ?').get(data.target_project_id) as
+      | { name: string }
+      | undefined
+    const r = db
+      .prepare(
+        'INSERT INTO project_link_requests (project_id, target_project_id, target_owner_name, scope, reason) VALUES (?, ?, ?, ?, ?)'
+      )
+      .run(
+        data.project_id,
+        data.target_project_id,
+        target?.name ?? '',
+        data.scope,
+        data.reason ?? ''
+      )
+    return { id: r.lastInsertRowid as number }
+  },
+  /**
+   * 审批共享请求：approved → 若请求方已有对该项目的 project_links 则提升 scope，
+   * 否则新建一条（scope=documents 直接建立的参考关系默认存在，这里统一 upsert 提升）。
+   */
+  resolve(id: number, decision: 'approve' | 'reject'): void {
+    const db = getSQLite()
+    db.transaction(() => {
+      const req = this.findById(id)
+      if (!req || req.status !== 'pending') return
+      const status: LinkRequestStatus = decision === 'approve' ? 'approved' : 'rejected'
+      db.prepare(
+        "UPDATE project_link_requests SET status = ?, resolved_at = datetime('now', 'localtime') WHERE id = ?"
+      ).run(status, id)
+      if (decision === 'approve') {
+        // 请求方对该目标项目的共享关系提升 scope
+        const link = db
+          .prepare('SELECT id, scope FROM project_links WHERE project_id = ? AND ref_project_id = ? LIMIT 1')
+          .get(req.project_id, req.target_project_id) as { id: number; scope: string } | undefined
+        const newScope = req.scope === 'all' ? 'all' : 'summaries'
+        if (link) {
+          db.prepare('UPDATE project_links SET scope = ? WHERE id = ?').run(newScope, link.id)
+        } else {
+          db.prepare('INSERT INTO project_links (project_id, ref_project_id, ref_name, scope) VALUES (?, ?, ?, ?)').run(
+            req.project_id,
+            req.target_project_id,
+            req.target_owner_name,
+            newScope
+          )
+        }
+      }
+    })()
+  },
+  delete(id: number): void {
+    const db = getSQLite()
+    db.prepare('DELETE FROM project_link_requests WHERE id = ?').run(id)
   }
 }

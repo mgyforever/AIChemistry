@@ -5,6 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { initDatabases } from './database'
 import { registerAiHandlers } from './ai-server'
 import { registerFileHandlers } from './files'
+import { registerStepDetailHandlers } from './windows/step-detail'
 
 function createWindow(): void {
   // Create the browser window.
@@ -28,6 +29,14 @@ function createWindow(): void {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
+  })
+
+  // 渲染进程日志/加载失败转发（便于诊断）
+  mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    console.log(`[Renderer:${level}] ${message} (${sourceId}:${line})`)
+  })
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    console.error('[Renderer] did-fail-load:', code, desc, url)
   })
 
   // HMR for renderer base on electron-vite cli.
@@ -63,6 +72,9 @@ app.whenReady().then(async () => {
   // Register file import IPC handlers
   registerFileHandlers()
   console.log('[App] 文件 IPC 处理器注册完成')
+  // Register step detail window IPC handlers (v3 问题③)
+  registerStepDetailHandlers()
+  console.log('[App] 步骤详情窗口 IPC 处理器注册完成')
 
   createWindow()
   console.log('[App] 主窗口创建完成')

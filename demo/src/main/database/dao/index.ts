@@ -7,8 +7,8 @@ export type { Message } from './message.dao'
 export { DocumentDao } from './document.dao'
 export type { Document } from './document.dao'
 
-export { ProjectDao, ProjectDocumentDao } from './project.dao'
-export type { Project, ProjectDocument } from '../../ai-server/type'
+export { ProjectDao, ProjectDocumentDao, ProjectLinkDao, ProjectLinkRequestDao } from './project.dao'
+export type { Project, ProjectDocument, ProjectLink, ProjectLinkRequest } from '../../ai-server/type'
 
 export { ProjectChatDao } from './project-chat.dao'
 export type { ProjectChat } from '../../ai-server/type'

@@ -24,9 +24,14 @@ const api = {
     saveRecord: (input: {
       project_id: number
       phase_id?: number
+      step_id?: number
+      branch_id?: number | null
+      step_experiment_id?: number | null
       name: string
       content: string
       data_json?: Record<string, unknown>
+      attachments?: string[]
+      chart_data?: Record<string, unknown>
     }): Promise<{ text: string; charts: unknown[]; compliance: unknown; recordId: number }> =>
       ipcRenderer.invoke('ai:save-record', input)
   },
@@ -126,7 +131,68 @@ const api = {
       addCustomData: (projectId: number, data: Record<string, unknown>): Promise<{ id: number }> =>
         ipcRenderer.invoke('db:experiment-custom-add', projectId, data),
       deleteCustomData: (id: number): Promise<void> =>
-        ipcRenderer.invoke('db:experiment-custom-delete', id)
+        ipcRenderer.invoke('db:experiment-custom-delete', id),
+      // ---- v0.7：步骤 DAG 与阶段门禁 ----
+      updateStepStatus: (id: number, status: string): Promise<void> =>
+        ipcRenderer.invoke('db:step-update-status', id, status),
+      readySteps: (projectId: number, branchId: number | null): Promise<unknown[]> =>
+        ipcRenderer.invoke('db:step-ready-list', projectId, branchId),
+      recomputeSteps: (projectId: number, branchId: number | null): Promise<void> =>
+        ipcRenderer.invoke('db:step-recompute', projectId, branchId),
+      // v3 问题④：步骤增删改
+      updateStep: (id: number, patch: Record<string, unknown>): Promise<void> =>
+        ipcRenderer.invoke('db:step-update', id, patch),
+      addStep: (projectId: number, data: Record<string, unknown>): Promise<{ id: number }> =>
+        ipcRenderer.invoke('db:step-add', projectId, data),
+      deleteStep: (id: number): Promise<void> => ipcRenderer.invoke('db:step-delete', id),
+      // v3 问题⑥：步骤级并行实验变体
+      stepExperiments: (projectId: number): Promise<unknown[]> =>
+        ipcRenderer.invoke('db:step-experiment-list', projectId),
+      createStepExperiment: (data: Record<string, unknown>): Promise<{ id: number }> =>
+        ipcRenderer.invoke('db:step-experiment-create', data),
+      updateStepExperiment: (id: number, patch: Record<string, unknown>): Promise<void> =>
+        ipcRenderer.invoke('db:step-experiment-update', id, patch),
+      deleteStepExperiment: (id: number): Promise<void> =>
+        ipcRenderer.invoke('db:step-experiment-delete', id),
+      writePhaseSummary: (id: number, patch: { summary: string; status: 'pending_review' }): Promise<void> =>
+        ipcRenderer.invoke('db:phase-generate-summary', id, patch),
+      /** 用户点击"生成小结"→ 主进程 LLM 生成阶段小结并写入（返回小结 Markdown） */
+      summaryAi: (projectId: number, phaseId: number): Promise<string> =>
+        ipcRenderer.invoke('db:phase-summary-ai', projectId, phaseId),
+      confirmGate: (id: number, decision: 'pass' | 'back', gateStatus: string, status?: string): Promise<void> =>
+        ipcRenderer.invoke('db:phase-confirm-gate', id, decision, gateStatus, status),
+      // ---- v0.8：并行实验分叉 ----
+      branches: (projectId: number): Promise<unknown[]> => ipcRenderer.invoke('db:branch-list', projectId),
+      createBranch: (data: Record<string, unknown>): Promise<{ id: number }> =>
+        ipcRenderer.invoke('db:branch-create', data),
+      finishBranch: (branchId: number | null, projectId?: number): Promise<void> =>
+        ipcRenderer.invoke('db:branch-finish', branchId, projectId),
+      branchPhases: (branchId: number): Promise<unknown[]> => ipcRenderer.invoke('db:branch-phases', branchId),
+      branchRecords: (branchId: number): Promise<unknown[]> => ipcRenderer.invoke('db:branch-records', branchId),
+      // ---- v0.9：阶段实验变量 / 实验事件 ----
+      phaseVariables: (phaseId: number, branchId: number | null): Promise<unknown[]> =>
+        ipcRenderer.invoke('db:phase-variables', phaseId, branchId),
+      upsertPhaseVariable: (data: Record<string, unknown>): Promise<{ id: number }> =>
+        ipcRenderer.invoke('db:phase-variable-upsert', data),
+      deletePhaseVariable: (id: number): Promise<void> => ipcRenderer.invoke('db:phase-variable-delete', id),
+      events: (projectId: number, phaseId: number | null, branchId: number | null): Promise<unknown[]> =>
+        ipcRenderer.invoke('db:event-list', projectId, phaseId, branchId),
+      addEvent: (data: Record<string, unknown>): Promise<{ id: number }> =>
+        ipcRenderer.invoke('db:event-add', data),
+      deleteEvent: (id: number): Promise<void> => ipcRenderer.invoke('db:event-delete', id)
+    },
+    // ---- v0.9/v0.10：项目间共享 ----
+    link: {
+      list: (projectId: number): Promise<unknown[]> => ipcRenderer.invoke('db:link-list', projectId),
+      add: (projectId: number, refProjectId: number, scope?: string): Promise<{ id: number }> =>
+        ipcRenderer.invoke('db:link-add', projectId, refProjectId, scope),
+      remove: (id: number): Promise<void> => ipcRenderer.invoke('db:link-remove', id),
+      requestList: (projectId: number, asRequester: boolean): Promise<unknown[]> =>
+        ipcRenderer.invoke('db:link-request-list', projectId, asRequester),
+      requestCreate: (data: Record<string, unknown>): Promise<{ id: number }> =>
+        ipcRenderer.invoke('db:link-request-create', data),
+      requestResolve: (id: number, decision: 'approve' | 'reject'): Promise<void> =>
+        ipcRenderer.invoke('db:link-request-resolve', id, decision)
     },
     paper: {
       list: (projectId: number): Promise<unknown[]> => ipcRenderer.invoke('db:paper-list', projectId),
@@ -154,7 +220,38 @@ const api = {
   // ========== 文件导入（P3/P4） ==========
   file: {
     open: (): Promise<string[]> => ipcRenderer.invoke('file:open'),
-    import: (paths: string[]): Promise<unknown[]> => ipcRenderer.invoke('file:import', paths)
+    import: (paths: string[]): Promise<unknown[]> => ipcRenderer.invoke('file:import', paths),
+    // v0.9：图片/视频附件
+    pickMedia: (): Promise<string[]> => ipcRenderer.invoke('file:pick-media'),
+    importMedia: (projectId: number, sourcePaths: string[]): Promise<string[]> =>
+      ipcRenderer.invoke('file:import-media', projectId, sourcePaths),
+    cleanupMedia: (projectId: number): Promise<void> => ipcRenderer.invoke('file:cleanup-media', projectId),
+    /** 用系统默认程序打开本地附件（图片/视频） */
+    openMedia: (filePath: string): Promise<string> => ipcRenderer.invoke('file:open-media', filePath),
+    /** 读取本地图片转 data URL 供 <img> 预览（视频返回 null） */
+    readMedia: (filePath: string): Promise<string | null> => ipcRenderer.invoke('file:read-media', filePath)
+  },
+  // ========== 步骤详情窗口（v3 问题③：独立 Electron 窗口） ==========
+  window: {
+    /** 打开（或复用）某项目的步骤详情窗口，并切换到/新增该步骤标签 */
+    openStepDetail: (projectId: number, stepId: number): Promise<void> =>
+      ipcRenderer.invoke('window:open-step-detail', projectId, stepId),
+    /** 步骤详情窗口挂载后领取初始 { projectId, stepId } */
+    claimStepDetailInit: (): Promise<{ projectId: number; stepId: number } | null> =>
+      ipcRenderer.invoke('window:step-detail-claim'),
+    /** 监听步骤详情窗口事件（step-detail:init / step-detail:add-tab），返回注销函数 */
+    onStepDetailEvent: (channel: string, callback: (payload: unknown) => void): (() => void) => {
+      const listener = (_event: unknown, payload: unknown): void => callback(payload)
+      ipcRenderer.on(channel, listener)
+      return () => ipcRenderer.removeListener(channel, listener)
+    }
+  },
+  // ========== 主进程事件监听（v0.10，§10.4） ==========
+  /** 注册实验状态变更事件监听（返回取消函数） */
+  onExperimentEvent: (channel: string, callback: (payload: unknown) => void): (() => void) => {
+    const listener = (_event: unknown, payload: unknown): void => callback(payload)
+    ipcRenderer.on(channel, listener)
+    return () => ipcRenderer.removeListener(channel, listener)
   }
 }
 

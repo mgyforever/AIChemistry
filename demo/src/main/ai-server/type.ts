@@ -22,6 +22,8 @@ export interface AiChat {
 
 /** 图表类型 */
 export type ChartType = 'gauge' | 'bar' | 'line' | 'pie' | 'radar' | 'scatter'
+// v0.7：gantt（步骤依赖/阶段泳道）| timeline（阶段门禁时间线）；v0.8：tree（分叉实验树）
+export type ChartTypeV2 = ChartType | 'gantt' | 'timeline' | 'tree'
 
 /** 单个图表规范（Agent 生成 echartsOption，前端直接渲染） */
 export interface ChartSpec {
@@ -29,8 +31,8 @@ export interface ChartSpec {
   id: string
   /** 图表标题 */
   title: string
-  /** 图表类型 */
-  type: ChartType
+  /** 图表类型（含基础类型 + gantt/timeline/tree） */
+  type: ChartTypeV2
   /** 完整 ECharts option（series/data 等） */
   echartsOption: Record<string, unknown>
 }
@@ -98,6 +100,49 @@ export interface ProjectDocument {
   created_at: string
 }
 
+// ==================== 项目间共享（v0.9/v0.10） ====================
+
+/** 参考项目关系（默认 scope=documents 仅文献；实验具体内容须经共享请求审批后提升 scope） */
+export interface ProjectLink {
+  /** 关联 ID */
+  id: number
+  /** 当前项目 */
+  project_id: number
+  /** 被参考项目（共享来源） */
+  ref_project_id: number
+  /** 被参考项目名称（快照，便于展示） */
+  ref_name: string
+  /** 共享范围：documents(仅文献，默认) / summaries(文献+实验摘要) / all */
+  scope: string
+  /** 创建时间 */
+  created_at: string
+}
+
+/** 共享请求状态 */
+export type LinkRequestStatus = 'pending' | 'approved' | 'rejected'
+
+/** 共享请求（请求方 → 项目作者审批，审批通过后提升对应 project_links.scope） */
+export interface ProjectLinkRequest {
+  /** 请求 ID */
+  id: number
+  /** 请求方项目（想参考别人） */
+  project_id: number
+  /** 被请求项目（作者审批） */
+  target_project_id: number
+  /** 被请求项目作者/项目名（快照） */
+  target_owner_name: string
+  /** 请求的共享范围：summaries / all */
+  scope: string
+  /** 请求说明（申请理由） */
+  reason: string
+  /** pending 待审批 / approved 已通过 / rejected 已拒绝 */
+  status: LinkRequestStatus
+  /** 发起时间 */
+  created_at: string
+  /** 审批时间 */
+  resolved_at: string | null
+}
+
 /** 向量摘要来源 */
 export type SummarySource = 'document' | 'step' | 'record' | 'phenomenon'
 
@@ -157,7 +202,10 @@ export interface StepConditions {
   other?: string
 }
 
-/** 复现方案：实验步骤 */
+/** 步骤状态（v0.7 并行执行核心） */
+export type StepStatus = 'pending' | 'ready' | 'in_progress' | 'completed' | 'skipped'
+
+/** 复现方案：实验步骤（v0.7：升级为依赖图 DAG，支持并行执行） */
 export interface ReproductionStep {
   /** 步骤 ID */
   id: number
@@ -175,6 +223,12 @@ export interface ReproductionStep {
   duration: string
   /** 备注 */
   notes: string
+  /** 前置步骤 id 列表（空 = 无依赖，可立即执行）；DAG 保证无环 */
+  depends_on: number[]
+  /** 步骤执行状态（见 §7.6 状态机） */
+  status: StepStatus
+  /** 所属并行实验分叉（树分叉），空 = 主线流程 */
+  branch_id: number | null
 }
 
 /** 复现方案：实验仪器/装置 */
@@ -323,8 +377,11 @@ export interface DocumentExtraction {
 
 // ==================== 实验阶段与记录（能力③） ====================
 
-/** 阶段状态 */
-export type PhaseStatus = 'pending' | 'in_progress' | 'completed'
+/** 阶段状态（v0.7：pending_review=步骤全完成、待小结与用户确认放行） */
+export type PhaseStatus = 'pending' | 'in_progress' | 'pending_review' | 'completed'
+
+/** 阶段门禁状态（v0.7 阶段边界） */
+export type PhaseGateStatus = 'locked' | 'open' | 'passed'
 
 /** 实验阶段 */
 export interface ExperimentPhase {
@@ -332,12 +389,22 @@ export interface ExperimentPhase {
   id: number
   /** 所属项目 */
   project_id: number
+  /** 所属并行实验分叉（树分叉），空 = 主线流程 */
+  branch_id: number | null
   /** 阶段名称（默认 "阶段1/2/3…"，可改） */
   name: string
   /** 阶段顺序 */
   phase_order: number
   /** 阶段状态 */
   status: PhaseStatus
+  /** 门禁状态（见 §7.7） */
+  gate_status: PhaseGateStatus
+  /** 阶段小结（AI 生成，Markdown，见 §7.7） */
+  summary: string
+  /** 小结生成时间 */
+  summary_created_at: string | null
+  /** 是否可与后续阶段并行执行（分叉场景） */
+  can_parallel: number
   /** 该阶段预期结果（来自文献） */
   expected: string
   /** 该阶段量化指标（PhaseMetric[] JSON 字符串，来自文献） */
@@ -357,6 +424,12 @@ export interface ExperimentRecord {
   project_id: number
   /** 关联阶段（可空） */
   phase_id: number | null
+  /** 关联步骤（可空 = 阶段级，v3） */
+  step_id?: number | null
+  /** 所属并行实验分叉（树分叉），空 = 主线流程 */
+  branch_id: number | null
+  /** 所属步骤级并行实验变体（可空 = 步骤默认执行，v3） */
+  step_experiment_id?: number | null
   /** 记录类型 */
   record_type: RecordType
   /** 记录名称（现象可自定义，如"实验现象1-黄色沉淀"） */
@@ -365,6 +438,12 @@ export interface ExperimentRecord {
   content: string
   /** 结构化数据 JSON 字符串 */
   data_json: string
+  /** 附件 JSON（图片/视频本地路径数组） */
+  attachments: string
+  /** ECharts 统计图录数 JSON（ChartRecordData） */
+  chart_data: string
+  /** pending 待入库 / indexed 已入库（延迟压缩，§7.11） */
+  vector_status: string
   /** 预期结果参考（Agent 生成） */
   expected: string
   /** 符合预期百分比 0~100 */
@@ -375,6 +454,146 @@ export interface ExperimentRecord {
   cause_analysis: string
   /** 实验细节（条件/用量/现象，具体到化学式） */
   detail: string
+  /** 创建时间 */
+  created_at: string
+}
+
+/** 阶段实验变量（v0.9：Agent 依据文献生成，用户可增删改） */
+export interface ExperimentPhaseVariable {
+  /** 变量 ID */
+  id: number
+  /** 所属项目 */
+  project_id: number
+  /** 所属阶段 */
+  phase_id: number
+  /** 所属步骤（可空 = 阶段级，v3） */
+  step_id?: number | null
+  /** 分叉归属（可空） */
+  branch_id: number | null
+  /** 所属步骤级并行实验变体（可空 = 步骤默认执行，v3） */
+  step_experiment_id?: number | null
+  /** 变量标识（如 reaction_temp） */
+  key: string
+  /** 变量名称（如"反应温度"） */
+  name: string
+  /** 变量类型 */
+  type: VariableType
+  /** 单位（°C / min / mol/L…） */
+  unit: string
+  /** 文献默认取值 */
+  default_value: string
+  /** 本次实验实际取值（用户填写） */
+  current_value: string
+  /** 枚举可选值 */
+  options: string
+  /** 是否 Agent 生成（false = 用户自定义新增） */
+  is_agent_generated: number
+  /** 变量作用说明 */
+  description: string
+  /** 显示顺序 */
+  sort_order: number
+  /** 创建时间 */
+  created_at: string
+}
+
+/** 实验事件（v0.9：记录会影响后续实验的事件，可附图片/视频） */
+export interface ExperimentEvent {
+  /** 事件 ID */
+  id: number
+  /** 所属项目 */
+  project_id: number
+  /** 分叉归属 */
+  branch_id: number | null
+  /** 所属阶段（可空=项目级） */
+  phase_id: number | null
+  /** 所属步骤（可空 = 阶段/项目级，v3） */
+  step_id?: number | null
+  /** 所属步骤级并行实验变体（可空 = 步骤默认执行，v3） */
+  step_experiment_id?: number | null
+  /** 事件名称 */
+  name: string
+  /** 事件描述（Markdown） */
+  content: string
+  /** 附件（图片/视频本地路径） */
+  media_paths: string
+  /** 创建时间 */
+  created_at: string
+}
+
+/** ECharts 空白统计图录数（v0.9，JSON 存 SQLite，入库前 LLM 转文本摘要进向量库） */
+export interface ChartRecordData {
+  /** 图表类型：line/bar/scatter（录入模板） */
+  type: string
+  /** 图表标题 */
+  title: string
+  /** X 轴名称 */
+  x_label: string
+  /** Y 轴名称 */
+  y_label: string
+  /** 数值单位 */
+  unit: string
+  /** 用户录入的数据序列 */
+  series: Array<{ name: string; data: Array<[number | string, number]> }>
+  /** 入库前由 LLM 生成的文本摘要（如"温度60→100°C，产率72%→85%，90°C达峰"） */
+  summary_text?: string
+}
+
+/** 并行实验分叉（v0.8 树分叉模型） */
+export interface ExperimentBranch {
+  /** 分叉 ID */
+  id: number
+  /** 所属项目 */
+  project_id: number
+  /** 父分叉 id（null = 从主线分出；形成树） */
+  parent_branch_id: number | null
+  /** 分支名（如"实验组A-分批加铜粉"） */
+  name: string
+  /** 分支说明（变量设定、目的） */
+  description: string
+  /** 相对父分支的变量差异 JSON */
+  variable_overrides: string
+  /** 分叉点：从哪个阶段之后开始独立 */
+  fork_phase_id: number | null
+  /** pending 未入库 / indexed 已入库（完成并行实验后异步压缩，§7.11） */
+  index_status: string
+  /** 创建时间 */
+  created_at: string
+}
+
+/** 阶段小结内容（v0.7：写入 ExperimentPhase.summary 的 Markdown 结构约定） */
+export interface PhaseSummary {
+  /** 本阶段结果汇总（数据/现象） */
+  results: string
+  /** 符合预期情况（百分比/是否预期） */
+  compliance: string
+  /** 异常与偏差 */
+  anomalies: string
+  /** 经验教训 */
+  lessons: string
+  /** 下一步建议（是否需调整方案/直接放行） */
+  next_advice: string
+}
+
+/** 步骤级并行实验（v3：在具体步骤中修改实验变量生成的变体，见修改计划问题⑥） */
+export interface StepExperiment {
+  /** 变体 ID */
+  id: number
+  /** 所属项目 */
+  project_id: number
+  /** 所属步骤 */
+  step_id: number
+  /** 所属分叉（空 = 主线），与步骤 branch_id 一致 */
+  branch_id: number | null
+  /** 从某变体再派生（可空，形成变体树） */
+  parent_experiment_id: number | null
+  /** 变体名（如"变体A-温度80°C"） */
+  name: string
+  /** 变体说明 */
+  description: string
+  /** 相对步骤默认变量的覆盖 JSON（{key: value}） */
+  variable_overrides: string
+  /** pending 待入库 / indexed 已入库 */
+  status: string
   /** 创建时间 */
   created_at: string
 }
@@ -407,6 +626,10 @@ export interface CustomData {
   project_id: number
   /** 关联记录（可空 = 项目级数据） */
   record_id: number | null
+  /** 所属步骤（可空 = 阶段/项目级，v3） */
+  step_id?: number | null
+  /** 所属步骤级并行实验变体（可空 = 步骤默认执行，v3） */
+  step_experiment_id?: number | null
   /** 数据名称（用户自定义） */
   data_name: string
   /** 化学数据类型 */
@@ -456,6 +679,8 @@ export interface DocumentFigure {
   document_id: number
   /** 关联项目（可选） */
   project_id: number | null
+  /** 所属步骤（可空 = 未归属/阶段级，v3 问题⑧） */
+  step_id?: number | null
   /** 图序号 */
   figure_index: number
   /** 所在页码 */
@@ -484,12 +709,30 @@ export interface StructuredFigureData {
   smiles?: string
   /** 谱图数据（x/y 数据点 + 峰表） */
   spectrum?: {
+    /** 谱图子类型：nmr_1h / nmr_13c / ir / ms / uv_vis / xrd / tga_dsc / raman / fluorescence / epr / hplc / gc / cv 等 */
+    spectrum_type?: string
     x: number[]
     y: number[]
+    /** X 轴名称，如 '2θ (°)'、'波长 (nm)'、'm/z' */
+    x_label?: string
+    /** Y 轴名称，如 '强度 (a.u.)'、'透过率 (%)' */
+    y_label?: string
+    /** 单位 */
+    unit?: string
     peaks?: Array<{ ppm: number; multiplicity?: string; intensity?: number }>
   }
   /** 数据图序列 */
-  chart?: { series: Array<{ name: string; data: Array<number | [number, number]> }> }
+  chart?: {
+    /** X 轴名称 */
+    x_label?: string
+    /** Y 轴名称 */
+    y_label?: string
+    /** 单位 */
+    unit?: string
+    series: Array<{ name: string; data: Array<number | [number, number]> }>
+  }
+  /** 图类细分（如 scheme / sem / nmr_1h / line_chart 等，与 type 配合） */
+  subtype?: string
   /** 其他类型描述 */
   description?: string
 }
@@ -558,6 +801,12 @@ export interface PredictionExperiment {
   id: number
   /** 所属项目 */
   project_id: number
+  /** 关联的分叉（空 = 主线），用于按分叉对比 */
+  branch_id: number | null
+  /** 关联步骤（可空 = 分支/主线级，v3 问题⑤） */
+  step_id?: number | null
+  /** 关联步骤级并行实验变体（可空，v3） */
+  step_experiment_id?: number | null
   /** 预测实验名称 */
   name: string
   /** 基于的实验流程描述 */
@@ -614,6 +863,12 @@ export interface DocumentImportResult {
   contentLength: number
   /** 解析出的图表数 */
   figureCount: number
+  /** 解析来源：mineru / local */
+  parser: string
+  /** v3：MinerU 解析后的 markdown 落盘路径（问题⑨，local 解析为空） */
+  mdPath?: string
+  /** v3：MinerU 解析出的图表结构化数据（图片块/表格块，问题⑦） */
+  figures?: unknown[]
 }
 
 /** 保存实验记录工具入参（能力③） */
@@ -622,12 +877,22 @@ export interface SaveRecordInput {
   project_id: number
   /** 关联阶段（可空） */
   phase_id?: number
+  /** 关联步骤（可空 = 阶段级，v3） */
+  step_id?: number
+  /** 所属分叉（可空 = 主线） */
+  branch_id?: number
+  /** 所属步骤级并行实验变体（可空 = 步骤默认执行，v3） */
+  step_experiment_id?: number
   /** 记录/现象名称（用户可自定义） */
   name: string
   /** 用户上传的数据原文（Markdown） */
   content: string
   /** 结构化数据 */
   data_json?: Record<string, unknown>
+  /** 附件本地路径（图片/视频） */
+  attachments?: string[]
+  /** ECharts 统计图录数 JSON */
+  chart_data?: ChartRecordData
   /** 符合度分析结果（缺省时工具内部通过 LLM 管线自动计算） */
   compliance?: ComplianceAnalysis
 }
@@ -636,12 +901,57 @@ export interface SaveRecordInput {
 export interface RunPredictionInput {
   /** 所属项目 */
   project_id: number
+  /** 关联分叉（用于平行实验，可空） */
+  branch_id?: number
+  /** 关联步骤（可空，v3 问题⑤） */
+  step_id?: number
+  /** 关联步骤级并行实验变体（可空，v3） */
+  step_experiment_id?: number
   /** 基于的实验流程描述 */
   flow: string
   /** 预测实验名称（缺省自动生成） */
   name?: string
   /** 本次全部变量取值 */
   variables: ExperimentVariable[]
+}
+
+/** 创建并行实验分叉入参（v0.8） */
+export interface CreateBranchInput {
+  /** 所属项目 */
+  project_id: number
+  /** 父分叉（空 = 从主线分出） */
+  parent_branch_id?: number
+  /** 分叉点阶段（复制该阶段及其后的阶段） */
+  fork_phase_id: number
+  /** 分支名 */
+  name: string
+  /** 变量设定/目的说明 */
+  description: string
+  /** 相对父分支的变量差异 */
+  variable_overrides?: Record<string, unknown>
+}
+
+/** 综合对比分析（v0.8 能力④：综合所有分叉的真实数据 + AI 预测结果 + 文献内容） */
+export interface ComprehensiveAnalysis {
+  /** 综合分析结论（Markdown） */
+  summary: string
+  /** 各分支/预测结果对比 */
+  branch_compare: Array<{
+    /** 分支 id（null=主线） */
+    branch_id: number | null
+    /** 分支/实验名 */
+    name: string
+    /** 关键结果 */
+    key_results: string
+    /** 符合预期情况 */
+    compliance: string
+    /** 优缺点 */
+    pros_cons: string
+  }>
+  /** 文献支撑（引用文献原文/图数据） */
+  literature_support: string
+  /** 最终结论与建议 */
+  conclusion: string
 }
 
 /** 项目全量上下文（get_project 工具返回） */
@@ -668,10 +978,20 @@ export interface ProjectContext {
   assessment: ReproductionAssessment | null
   /** 实验阶段 */
   phases: ExperimentPhase[]
-  /** 阶段记录/现象（含最新数据） */
+  /** 阶段记录/现象（含附件/图表/向量状态） */
   records: ExperimentRecord[]
   /** 自定义数据 */
   customData: CustomData[]
+  /** 阶段实验变量（Agent 生成 + 用户自定义） */
+  phaseVariables: ExperimentPhaseVariable[]
+  /** 实验事件（含图片/视频附件） */
+  events: ExperimentEvent[]
+  /** 并行实验分叉（树结构，含父分叉引用与入库状态） */
+  branches: ExperimentBranch[]
+  /** 步骤级并行实验变体（v3 问题⑥） */
+  stepExperiments: StepExperiment[]
+  /** 参考项目（跨项目共享关系） */
+  links: ProjectLink[]
   /** 历史预测实验 */
   predictions: PredictionExperiment[]
   /** 已生成论文 */
@@ -690,4 +1010,42 @@ export interface ExperimentAgentRequest {
   message: string
   /** 陪伴对话历史 */
   history: { role: string; content: string }[]
+}
+
+// ==================== 主进程 → 渲染进程事件通知（v0.10，见 §10.4） ====================
+
+/** 事件名称（webContents.send 广播通道） */
+export type ExperimentEventName =
+  /** 结构化状态变更（门禁/步骤/分支/项目状态） */
+  | 'experiment:state-changed'
+  /** 后台延迟入库完成（§7.11） */
+  | 'experiment:index-done'
+  /** 收到共享请求（§7.10） */
+  | 'experiment:share-request-received'
+  /** 共享请求审批结果 */
+  | 'experiment:share-resolved'
+
+/** 状态变更类型 */
+export type ExperimentStateKind =
+  /** 阶段门禁（放行/返回修改/解锁） */
+  | 'phase-gate'
+  /** 步骤状态变更 */
+  | 'step-status'
+  /** 分叉状态变更（含索引完成） */
+  | 'branch-status'
+  /** 项目状态变更 */
+  | 'project-status'
+  /** 记录/事件/变量新增（数据面板刷新） */
+  | 'record-added'
+
+/** 事件负载（渲染进程监听后按 projectId 命中刷新视图） */
+export interface ExperimentEventPayload {
+  /** 所属项目（避免跨项目串扰） */
+  projectId: number
+  /** 变更类型 */
+  kind: ExperimentStateKind
+  /** 变更实体 id（阶段/步骤/分支等） */
+  entityId?: number
+  /** 扩展字段（如 scope 变更值） */
+  [key: string]: unknown
 }

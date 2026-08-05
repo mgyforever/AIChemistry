@@ -3,38 +3,49 @@ import { z } from 'zod'
 import {
   ProjectDao,
   ProjectDocumentDao,
+  ProjectLinkDao,
+  ProjectLinkRequestDao,
   ReproductionDao,
   ExperimentDao,
   PaperDao,
   PredictionDao,
-  DocumentDao
+  DocumentDao,
+  FigureDao
 } from '../../database/dao'
 import { readDocument } from '../../files/reader'
 import { parseDocumentFigures } from '../../files/figures'
 import { searchWeb } from '../tools/web-tools'
-import { addProjectSummaries, searchProjectSummaries } from './summaries'
+import { addProjectSummaries, searchProjectSummaries, indexBranchSummaries } from './summaries'
+import { notifyStateChange, notifyShareRequestReceived, notifyShareResolved } from './events'
 import {
   extractDocument,
+  dedupeSteps,
   analyzeCompliance,
   suggestOptimizations,
   analyzeVariableEffects,
   predictExperiment,
-  generatePaper
+  generatePaper,
+  generateStageSummary,
+  generatePhaseVariables,
+  comprehensiveAnalysis
 } from './pipeline'
 import { gaugeChart, barChart, radarChart, withCharts } from './charts'
 import type {
+  ChartRecordData,
   ChartSpec,
   ComplianceAnalysis,
   ConcernCategory,
   DocumentImportResult,
+  ExperimentPhaseVariable,
   ExperimentVariable,
   ProjectContext,
   StepConditions,
+  StepStatus,
   VariableEffect
 } from '../type'
 
 /**
- * 实验复现 Agent 工具集（14 个）
+ * 实验复现 Agent 工具集（16 基础 + v0.7 门禁/DAG + v0.8 分叉/综合对比 + v0.9 变量/事件/共享 + v0.10 共享请求）
  * 全部为 main 进程内实现，仅由工作台页面经 ai:experiment-* 触发
  */
 
@@ -49,23 +60,28 @@ function fmtProjectList(): string {
   )
 }
 
-function getContext(projectId: number): ProjectContext | null {
+function getContext(projectId: number, branchId: number | null = null): ProjectContext | null {
   const project = ProjectDao.findById(projectId)
   if (!project) return null
   return {
     project,
     documents: ProjectDocumentDao.findByProject(projectId),
     materials: ReproductionDao.materials(projectId),
-    steps: ReproductionDao.steps(projectId),
+    steps: ReproductionDao.steps(projectId, branchId),
     instruments: ReproductionDao.instruments(projectId),
     concerns: ReproductionDao.concerns(projectId),
     reactions: ReproductionDao.reactions(projectId),
     characterizations: ReproductionDao.characterizations(projectId),
     gaps: ReproductionDao.gaps(projectId),
     assessment: ReproductionDao.assessment(projectId) ?? null,
-    phases: ExperimentDao.phases(projectId),
-    records: ExperimentDao.records(projectId),
+    phases: ExperimentDao.phases(projectId, branchId),
+    records: ExperimentDao.records(projectId, branchId),
     customData: ExperimentDao.customData(projectId),
+    phaseVariables: ExperimentDao.allPhaseVariables(projectId),
+    events: ExperimentDao.events(projectId),
+    branches: ExperimentDao.branches(projectId),
+    stepExperiments: ExperimentDao.stepExperiments(projectId),
+    links: ProjectLinkDao.findByProject(projectId),
     predictions: PredictionDao.findByProject(projectId),
     papers: PaperDao.findByProject(projectId),
     summaries: []
@@ -363,7 +379,13 @@ export const importDocumentsTool = tool(
         const doc = await readDocument(p)
         const { id } = DocumentDao.create(title || doc.title, doc.content, JSON.stringify({ sourcePath: p }))
         const figureCount = await parseDocumentFigures(id, doc.images, doc.tables)
-        results.push({ documentId: id, title: title || doc.title, contentLength: doc.content.length, figureCount })
+        results.push({
+          documentId: id,
+          title: title || doc.title,
+          contentLength: doc.content.length,
+          figureCount,
+          parser: 'local'
+        })
       } catch (err) {
         console.error('[Tools] 文献导入失败:', p, err)
       }
@@ -417,6 +439,8 @@ export const createProjectFromDocumentsTool = tool(
 
     const { id: projectId } = ProjectDao.create(project_name, extraction.principle.slice(0, 500), extraction.summary)
     docs.forEach((d) => ProjectDocumentDao.create(projectId, d.id, 'source'))
+    // v3 问题⑧：该文献的图表同步归属到新项目（否则图表面板按项目查不到）
+    docs.forEach((d) => FigureDao.assignToProject(d.id, projectId))
 
     // 复现方案入库
     extraction.materials.forEach((m) => ReproductionDao.addMaterial(projectId, m))
@@ -518,10 +542,11 @@ export async function parseDocumentsIntoProject(
     .filter((d): d is NonNullable<typeof d> => Boolean(d))
   if (!docs.length) throw new Error('未找到对应文献，请先导入文献。')
 
-  // 关联文献到当前项目（已关联则跳过）
+  // 关联文献到当前项目（已关联则跳过），并同步图表归属（v3 问题⑧：否则图表面板按项目查不到）
   for (const d of docs) {
     const linked = ProjectDocumentDao.findByProject(projectId).some((pd) => pd.document_id === d.id)
     if (!linked) ProjectDocumentDao.create(projectId, d.id, 'source')
+    FigureDao.assignToProject(d.id, projectId)
   }
 
   const joined = docs.map((d) => d.content).join('\n\n')
@@ -549,14 +574,62 @@ export async function parseDocumentsIntoProject(
   ReproductionDao.clearReactions(projectId)
   ReproductionDao.clearCharacterizations(projectId)
   ReproductionDao.clearGaps(projectId)
+  // v3 问题①：落库前幂等去重（extractDocument 已去重，此处双保险）
+  const steps = dedupeSteps(extraction.steps)
   extraction.materials.forEach((m) => ReproductionDao.addMaterial(projectId, m))
-  extraction.steps.forEach((s) => ReproductionDao.addStep(projectId, s))
+  // v0.7：步骤依赖——先全量插入（依赖置空），再按步骤顺序线性链接（前端泳道图可手工调整）
+  const stepIds: number[] = []
+  steps.forEach((s) => {
+    const { id } = ReproductionDao.addStep(projectId, {
+      ...s,
+      depends_on: [],
+      status: 'pending',
+      branch_id: null
+    })
+    stepIds.push(id)
+  })
+  stepIds.forEach((id, idx) => {
+    if (idx > 0) ReproductionDao.setStepDependencies(id, [stepIds[idx - 1]])
+  })
+  ReproductionDao.recomputeReady(projectId, null)
+
+  // v3 问题⑧：文献图表按文档内顺序均分映射到步骤（启发式，用户可在图表面板调整归属）
+  try {
+    const figs = FigureDao.findByProject(projectId)
+    if (figs.length && stepIds.length) {
+      figs.forEach((f, idx) => {
+        const target = Math.min(stepIds.length - 1, Math.round((idx * stepIds.length) / figs.length))
+        const stepId = stepIds[target]
+        if (stepId) FigureDao.update(f.id, { step_id: stepId })
+      })
+      console.log('[Tools] 图表-步骤映射完成:', figs.length, '张图表 →', stepIds.length, '个步骤')
+    }
+  } catch (err) {
+    console.error('[Tools] 图表-步骤映射失败（不影响主流程）:', err)
+  }
   extraction.instruments.forEach((i) => ReproductionDao.addInstrument(projectId, i))
   extraction.characterizations.forEach((c) => ReproductionDao.addCharacterization(projectId, c))
   extraction.concerns.forEach((c) => ReproductionDao.addConcern(projectId, c))
   extraction.reactions.forEach((r) => ReproductionDao.addReaction(projectId, r))
   extraction.gaps.forEach((g) => ReproductionDao.addGap(projectId, g))
   ReproductionDao.upsertAssessment(projectId, extraction.assessment)
+
+  // v0.9：为各阶段生成实验变量（Agent 依据文献设计，用户可增删改）
+  try {
+    for (const p of extraction.phases) {
+      const vars = await generatePhaseVariables(p.name, p.expected, joined)
+      if (vars.length) {
+        const phase = ExperimentDao.phases(projectId).find((ph) => ph.name === p.name)
+        if (phase) {
+          vars.forEach((v) =>
+            ExperimentDao.upsertPhaseVariable({ ...v, project_id: projectId, phase_id: phase.id })
+          )
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Tools] 阶段实验变量生成失败（不影响主流程）:', err)
+  }
 
   // 实验阶段（覆盖旧阶段，含量化指标）
   ExperimentDao.phases(projectId).forEach((p) => ExperimentDao.deletePhase(p.id))
@@ -573,7 +646,7 @@ export async function parseDocumentsIntoProject(
   // 向量摘要
   await addProjectSummaries(projectId, [
     { text: extraction.summary, source: 'document' },
-    ...extraction.steps.map((s) => ({ text: `${s.step_no}. ${s.title}: ${s.description}`, source: 'step' as const }))
+    ...steps.map((s) => ({ text: `${s.step_no}. ${s.title}: ${s.description}`, source: 'step' as const }))
   ])
 
   // 图表：难度雷达 + 材料配比
@@ -842,9 +915,18 @@ export const addExperimentPhaseTool = tool(
 export interface SaveRecordInput {
   project_id: number
   phase_id?: number
+  step_id?: number
+  branch_id?: number
+  step_experiment_id?: number
   name: string
   content: string
   data_json?: Record<string, unknown>
+  /** v0.9：附件本地路径（图片/视频） */
+  attachments?: string[]
+  /** v0.9：ECharts 统计图录数 JSON */
+  chart_data?: ChartRecordData
+  /** v0.9：符合度分析结果（缺省时自动计算） */
+  compliance?: ComplianceAnalysis
 }
 
 /** 保存实验记录结果（文本 + 图表 + 符合度） */
@@ -858,6 +940,7 @@ export interface SaveRecordResult {
 /**
  * 保存阶段实验记录/现象并自动分析符合度（主界面表单与 agent 工具共用）。
  * 返回友好文本与图表，不抛错则代表已落库。
+ * v0.9：记录仅置 vector_status=pending，不即时向量化（点击"完成本次并行实验"后后台批量入库，§7.11）。
  */
 export async function saveExperimentRecordWithAnalysis(
   input: SaveRecordInput
@@ -865,6 +948,7 @@ export async function saveExperimentRecordWithAnalysis(
   console.log('[ExperimentTools] save_record_with_analysis 开始:', {
     project_id: input.project_id,
     phase_id: input.phase_id ?? null,
+    branch_id: input.branch_id ?? null,
     name: input.name,
     contentLen: input.content.length
   })
@@ -873,14 +957,20 @@ export async function saveExperimentRecordWithAnalysis(
 
   // 计算符合度（缺省时由管线自动计算）
   const phase = input.phase_id ? ExperimentDao.phaseById(input.phase_id) : undefined
-  const compliance = await analyzeCompliance(phase?.expected ?? '', input.content)
+  const compliance = input.compliance ?? (await analyzeCompliance(phase?.expected ?? '', input.content))
 
   const { id: recordId } = ExperimentDao.addRecord(input.project_id, {
     phase_id: input.phase_id,
+    step_id: input.step_id,
+    branch_id: input.branch_id,
+    step_experiment_id: input.step_experiment_id,
     record_type: 'phase',
     name: input.name,
     content: input.content,
     data_json: input.data_json ? JSON.stringify(input.data_json) : '{}',
+    attachments: JSON.stringify(input.attachments ?? []),
+    chart_data: input.chart_data ? JSON.stringify(input.chart_data) : '{}',
+    vector_status: 'pending',
     expected: compliance.expected,
     compliance_percent: compliance.compliance_percent,
     is_expected: compliance.is_expected ? 1 : 0,
@@ -888,10 +978,8 @@ export async function saveExperimentRecordWithAnalysis(
     detail: compliance.detail
   })
 
-  // 增量更新向量摘要
-  await addProjectSummaries(input.project_id, [
-    { text: `${input.name}: ${input.content.slice(0, 500)}`, source: 'record' }
-  ])
+  // v0.9：不再即时向量化；记录保存仅广播 record-added 事件供前端刷新
+  notifyStateChange(input.project_id, 'record-added', recordId)
 
   const charts: ChartSpec[] = [
     gaugeChart('compliance', '符合预期程度', compliance.compliance_percent),
@@ -909,6 +997,8 @@ export async function saveExperimentRecordWithAnalysis(
   lines.push(`**标准结果参考**: ${compliance.expected}`)
   lines.push(`**原因分析**: ${compliance.cause_analysis}`)
   lines.push(`**实验细节**: ${compliance.detail}`)
+  if (input.attachments?.length) lines.push(`**附件**: ${input.attachments.length} 个图片/视频`)
+  if (input.chart_data?.title) lines.push(`**统计图**: ${input.chart_data.title}`)
   console.log('[ExperimentTools] save_record_with_analysis 完成:', {
     recordId,
     compliancePercent: compliance.compliance_percent
@@ -934,9 +1024,25 @@ export const saveExperimentRecordTool = tool(
     schema: z.object({
       project_id: z.number(),
       phase_id: z.number().optional(),
+      step_id: z.number().optional().describe('所属步骤 id（空 = 阶段级，v3）'),
+      branch_id: z.number().optional().describe('所属并行实验分叉 id（空=主线）'),
+      step_experiment_id: z.number().optional().describe('所属步骤级并行实验变体 id（空 = 步骤默认执行，v3）'),
       name: z.string().describe('记录/现象名称，如"实验现象1-黄色沉淀"'),
       content: z.string().describe('用户上传的数据原文（Markdown，含化学式）'),
-      data_json: z.record(z.string(), z.unknown()).optional().describe('结构化数据')
+      data_json: z.record(z.string(), z.unknown()).optional().describe('结构化数据'),
+      attachments: z.array(z.string()).optional().describe('附件本地路径（图片/视频）'),
+      chart_data: z
+        .object({
+          type: z.string(),
+          title: z.string(),
+          x_label: z.string(),
+          y_label: z.string(),
+          unit: z.string(),
+          series: z.array(z.object({ name: z.string(), data: z.array(z.tuple([z.union([z.number(), z.string()]), z.number()])) })),
+          summary_text: z.string().optional()
+        })
+        .optional()
+        .describe('ECharts 统计图录数数据')
     })
   }
 )
@@ -1140,6 +1246,9 @@ export const analyzeVariableEffectsTool = tool(
 export const runPredictionExperimentTool = tool(
   async (input: {
     project_id: number
+    branch_id?: number
+    step_id?: number
+    step_experiment_id?: number
     flow: string
     name?: string
     variables: Array<{
@@ -1153,6 +1262,8 @@ export const runPredictionExperimentTool = tool(
   }) => {
     console.log('[ExperimentTools] run_prediction_experiment 开始:', {
       project_id: input.project_id,
+      branch_id: input.branch_id ?? null,
+      step_id: input.step_id ?? null,
       varCount: input.variables.length,
       name: input.name ?? null
     })
@@ -1179,6 +1290,9 @@ export const runPredictionExperimentTool = tool(
       `预测实验 ${new Date().toLocaleString('zh-CN', { hour12: false })}`
     PredictionDao.create({
       project_id: input.project_id,
+      branch_id: input.branch_id ?? null,
+      step_id: input.step_id ?? null,
+      step_experiment_id: input.step_experiment_id ?? null,
       name,
       base_flow: (input.flow || fmtContext(ctx)).slice(0, 4000),
       variables: JSON.stringify(input.variables),
@@ -1221,6 +1335,9 @@ export const runPredictionExperimentTool = tool(
       '预测结果（预测/未验证）保存到预测实验记录。',
     schema: z.object({
       project_id: z.number(),
+      branch_id: z.number().optional().describe('所属并行实验分叉 id（空=主线）'),
+      step_id: z.number().optional().describe('所属步骤 id（空 = 分支/主线级，v3）'),
+      step_experiment_id: z.number().optional().describe('所属步骤级并行实验变体 id（空，v3）'),
       flow: z.string().describe('基于的实验流程描述'),
       name: z.string().optional().describe('预测实验名称，缺省自动生成'),
       variables: z
@@ -1287,5 +1404,611 @@ export const generatePaperTool = tool(
       '仅基于数据库中的真实数据，缺失部分标注【待人工补充】；图表以占位符+数据表输出。' +
       '由用户主动选择生成（可选，不强制）。',
     schema: z.object({ project_id: z.number() })
+  }
+)
+
+// ==================== v0.7：步骤 DAG 与阶段门禁 ====================
+
+export const updateStepStatusTool = tool(
+  async ({ project_id, step_id, status }: { project_id: number; step_id: number; status: string }) => {
+    console.log('[ExperimentTools] update_step_status 开始:', { project_id, step_id, status })
+    const step = ReproductionDao.stepById(step_id)
+    if (!step || step.project_id !== project_id) return `步骤 ${step_id} 不存在。`
+    if (!['pending', 'ready', 'in_progress', 'completed', 'skipped'].includes(status)) return `非法状态: ${status}`
+    ReproductionDao.updateStepStatus(step_id, status as StepStatus)
+    notifyStateChange(project_id, 'step-status', step_id)
+    return `步骤"${step.title}"状态已更新为 ${status}。`
+  },
+  {
+    name: 'update_step_status',
+    description:
+      '更新步骤执行状态（pending/ready/in_progress/completed/skipped）。步骤完成(completed)或跳过(skipped)时自动解锁依赖它的后继步骤（置为 ready）。' +
+      '注意：流程推进由用户在界面点击按钮触发，AI 不主动调用本工具推进步骤。',
+    schema: z.object({
+      project_id: z.number(),
+      step_id: z.number().describe('步骤 ID'),
+      status: z.enum(['pending', 'ready', 'in_progress', 'completed', 'skipped'])
+    })
+  }
+)
+
+export const generateStageSummaryTool = tool(
+  async ({ project_id, phase_id }: { project_id: number; phase_id: number }) => {
+    console.log('[ExperimentTools] generate_stage_summary 开始:', { project_id, phase_id })
+    const phase = ExperimentDao.phaseById(phase_id)
+    if (!phase || phase.project_id !== project_id) return `阶段 ${phase_id} 不存在。`
+    const records = ExperimentDao
+      .records(project_id, phase.branch_id)
+      .filter((r) => r.phase_id === phase_id)
+    const events = ExperimentDao
+      .events(project_id, phase_id, phase.branch_id)
+      .map((e) => `- 【${e.name}】${e.content}`)
+      .join('\n')
+    const context =
+      `【阶段名称】${phase.name}\n【阶段预期】${phase.expected}\n` +
+      `【本阶段记录】\n${records.map((r) => `- ${r.name}（符合度 ${r.compliance_percent ?? 'N/A'}%）: ${r.content}`).join('\n')}\n` +
+      (events ? `【本阶段实验事件】\n${events}` : '')
+    let summary
+    try {
+      summary = await generateStageSummary(context)
+    } catch (err) {
+      console.error('[ExperimentTools] 阶段小结生成失败:', err)
+      return `阶段小结生成失败: ${err instanceof Error ? err.message : String(err)}`
+    }
+    const markdown =
+      `## 阶段小结：${phase.name}\n\n` +
+      `**结果汇总**: ${summary.results}\n\n` +
+      `**符合预期**: ${summary.compliance}\n\n` +
+      `**异常与偏差**: ${summary.anomalies}\n\n` +
+      `**经验教训**: ${summary.lessons}\n\n` +
+      `**下一步建议**: ${summary.next_advice}\n\n` +
+      `> 请用户在界面上审阅小结后，点击【确认放行】进入下一阶段（或【返回修改】修正本阶段）。`
+    ExperimentDao.updatePhase(phase_id, {
+      summary: markdown,
+      summary_created_at: new Date().toISOString(),
+      status: 'pending_review'
+    })
+    notifyStateChange(project_id, 'phase-gate', phase_id)
+    return markdown
+  },
+  {
+    name: 'generate_stage_summary',
+    description:
+      '生成阶段小结：汇总本阶段结果/符合预期情况/异常与偏差/经验教训/下一步建议，写入阶段 summary 并置阶段为 pending_review。' +
+      '阶段内步骤全部完成后由用户在界面点击"生成小结"触发（AI 不主动推进）。',
+    schema: z.object({
+      project_id: z.number(),
+      phase_id: z.number().describe('阶段 ID')
+    })
+  }
+)
+
+export const confirmStageGateTool = tool(
+  async ({
+    project_id,
+    phase_id,
+    decision
+  }: {
+    project_id: number
+    phase_id: number
+    decision: 'pass' | 'back'
+  }) => {
+    console.log('[ExperimentTools] confirm_stage_gate 开始:', { project_id, phase_id, decision })
+    const phase = ExperimentDao.phaseById(phase_id)
+    if (!phase || phase.project_id !== project_id) return `阶段 ${phase_id} 不存在。`
+    const branchId = phase.branch_id
+    if (decision === 'pass') {
+      // 当前阶段放行
+      ExperimentDao.updatePhase(phase_id, { status: 'completed', gate_status: 'passed' })
+      // 解锁下一阶段（同分支内 phase_order 更大的第一个 locked）
+      const nextPhase = ExperimentDao
+        .phases(project_id, branchId)
+        .filter((p) => p.phase_order > phase.phase_order && p.gate_status === 'locked')
+        .sort((a, b) => a.phase_order - b.phase_order)[0]
+      if (nextPhase) {
+        ExperimentDao.updatePhase(nextPhase.id, { gate_status: 'open', status: 'in_progress' })
+        notifyStateChange(project_id, 'phase-gate', nextPhase.id)
+      }
+      notifyStateChange(project_id, 'phase-gate', phase_id)
+      return `阶段"${phase.name}"已放行。${nextPhase ? `下一阶段"${nextPhase.name}"已解锁。` : '全部阶段已完成。'}`
+    } else {
+      ExperimentDao.updatePhase(phase_id, { status: 'in_progress', gate_status: 'open' })
+      notifyStateChange(project_id, 'phase-gate', phase_id)
+      return `已返回修改阶段"${phase.name}"，请修正后重新生成小结。`
+    }
+  },
+  {
+    name: 'confirm_stage_gate',
+    description:
+      '确认阶段门禁放行（pass）或返回修改（back）。pass：当前阶段置 completed，解锁下一阶段（gate=open）；back：当前阶段回到 in_progress。' +
+      '由用户在界面点击【确认放行】/【返回修改】触发，AI 不主动推进。',
+    schema: z.object({
+      project_id: z.number(),
+      phase_id: z.number(),
+      decision: z.enum(['pass', 'back'])
+    })
+  }
+)
+
+// ==================== v0.8：并行实验分叉 ====================
+
+export const createBranchTool = tool(
+  async (input: {
+    project_id: number
+    parent_branch_id?: number
+    fork_phase_id: number
+    name: string
+    description?: string
+    variable_overrides?: Record<string, unknown>
+  }) => {
+    console.log('[ExperimentTools] create_branch 开始:', JSON.stringify(input))
+    const phase = ExperimentDao.phaseById(input.fork_phase_id)
+    if (!phase || phase.project_id !== input.project_id) return `分叉点阶段不存在: ${input.fork_phase_id}`
+    const { id } = ExperimentDao.createBranch({
+      project_id: input.project_id,
+      parent_branch_id: input.parent_branch_id ?? null,
+      fork_phase_id: input.fork_phase_id,
+      name: input.name,
+      description: input.description,
+      variable_overrides: input.variable_overrides
+    })
+    notifyStateChange(input.project_id, 'branch-status', id)
+    return `并行实验分叉"${input.name}"已创建（branchId=${id}）。分叉点之后（阶段"${phase.name}"起）的阶段/步骤/记录/预测完全独立，可在界面切换查看。`
+  },
+  {
+    name: 'create_branch',
+    description:
+      '创建并行实验分叉：复制分叉点及其后的阶段/步骤为独立分支，分支间数据互不干扰，可再分叉形成实验树。' +
+      '用户在阶段数据上传处点击"创建并行实验"时调用（AI 不主动创建）。',
+    schema: z.object({
+      project_id: z.number(),
+      parent_branch_id: z.number().optional().describe('父分叉 id（空 = 从主线分出）'),
+      fork_phase_id: z.number().describe('分叉点阶段 id（复制该阶段及其后的阶段）'),
+      name: z.string().describe('分支名，如"实验组A-分批加铜粉"'),
+      description: z.string().optional().describe('分支说明（变量设定、目的）'),
+      variable_overrides: z.record(z.string(), z.unknown()).optional().describe('相对父分支的变量差异')
+    })
+  }
+)
+
+export const switchBranchTool = tool(
+  async ({ project_id, branch_id }: { project_id: number; branch_id?: number }) => {
+    console.log('[ExperimentTools] switch_branch 开始:', { project_id, branch_id })
+    const branch = branch_id ? ExperimentDao.branchById(branch_id) : undefined
+    if (branch_id && (!branch || branch.project_id !== project_id)) return `分叉 ${branch_id} 不存在。`
+    const ctx = getContext(project_id, branch_id ?? null)
+    if (!ctx) return `项目 ${project_id} 不存在。`
+    const text = `当前工作分支：${branch ? `"${branch.name}"（branchId=${branch.id}）` : '主线（branch_id=null）'}\n\n` + fmtContext(ctx)
+    return text
+  },
+  {
+    name: 'switch_branch',
+    description: '切换当前工作分支（branch_id 为空 = 主线），返回该分支的独立阶段/步骤/记录上下文。用户切换分支时调用。',
+    schema: z.object({
+      project_id: z.number(),
+      branch_id: z.number().optional().describe('分叉 id（空 = 主线）')
+    })
+  }
+)
+
+export const finishBranchTool = tool(
+  async ({ project_id, branch_id }: { project_id: number; branch_id?: number }) => {
+    console.log('[ExperimentTools] finish_branch 开始:', { project_id, branch_id })
+    const branch = branch_id ? ExperimentDao.branchById(branch_id) : undefined
+    if (branch_id && (!branch || branch.project_id !== project_id)) return `分叉 ${branch_id} 不存在。`
+    // 标记分支完成 → 后台异步压缩入库（不阻塞响应）
+    const pendingRecords = ExperimentDao.pendingRecords(project_id, branch_id ?? null)
+    const events = ExperimentDao.events(project_id, null, branch_id ?? null)
+    if (branch_id) ExperimentDao.finishBranch(branch_id)
+    const runIndex = async (): Promise<void> => {
+      try {
+        await indexBranchSummaries(
+          project_id,
+          pendingRecords.map((r) => ({
+            id: r.id,
+            name: r.name,
+            content: r.content,
+            expected: r.expected,
+            compliance_percent: r.compliance_percent,
+            is_expected: r.is_expected,
+            cause_analysis: r.cause_analysis,
+            detail: r.detail,
+            chart_data: r.chart_data
+          })),
+          events.map((e) => ({ name: e.name, content: e.content })),
+          branch_id ?? null
+        )
+        for (const r of pendingRecords) ExperimentDao.markRecordIndexed(r.id)
+        if (branch_id) ExperimentDao.markBranchIndexed(branch_id)
+        notifyStateChange(project_id, 'branch-status', branch_id, { indexed: true })
+      } catch (err) {
+        console.error('[ExperimentTools] finish_branch 后台索引失败（将在下次触发时重试）:', err)
+      }
+    }
+    // 后台执行，不阻塞本次响应
+    void runIndex()
+    return `并行实验"${branch?.name ?? '主线'}"已完成。正在后台整理实验数据（${pendingRecords.length} 条记录）…可继续其他操作。`
+  },
+  {
+    name: 'finish_branch',
+    description:
+      '完成本次并行实验（用户点击"完成本次并行实验"触发）：标记分支完成并触发后台异步压缩入库（不阻塞 UI）。' +
+      'AI 不主动调用。',
+    schema: z.object({
+      project_id: z.number(),
+      branch_id: z.number().optional().describe('分叉 id（空 = 主线）')
+    })
+  }
+)
+
+// ==================== v0.9：阶段实验变量与实验事件 ====================
+
+export const listPhaseVariablesTool = tool(
+  async ({ project_id, phase_id, branch_id }: { project_id: number; phase_id: number; branch_id?: number }) => {
+    void project_id
+    const vars = ExperimentDao.phaseVariables(phase_id, branch_id ?? null)
+    if (!vars.length) return '该阶段暂无实验变量（可在界面上添加，或重新解析文献生成）。'
+    return (
+      `阶段 ${phase_id} 实验变量：\n\n` +
+      vars
+        .map(
+          (v) =>
+            `- **${v.name}** (key=${v.key}, type=${v.type})${v.unit ? `，单位 ${v.unit}` : ''}` +
+            `${v.default_value ? `，文献默认 ${v.default_value}` : ''}` +
+            `${v.current_value ? `，本次取值 ${v.current_value}` : ''}${v.is_agent_generated ? '' : '（用户自定义）'}`
+        )
+        .join('\n')
+    )
+  },
+  {
+    name: 'list_phase_variables',
+    description: '列出某阶段的实验变量（Agent 依据文献生成 + 用户自定义），含默认值与本次实际取值。',
+    schema: z.object({
+      project_id: z.number(),
+      phase_id: z.number(),
+      branch_id: z.number().optional()
+    })
+  }
+)
+
+export const updatePhaseVariablesTool = tool(
+  async (input: {
+    project_id: number
+    phase_id: number
+    branch_id?: number
+    variables: Array<{
+      id?: number
+      key: string
+      name: string
+      type?: string
+      unit?: string
+      default_value?: string
+      current_value?: string
+      options?: string[]
+      is_agent_generated?: boolean
+      description?: string
+      sort_order?: number
+    }>
+  }) => {
+    console.log('[ExperimentTools] update_phase_variables 开始:', {
+      project_id: input.project_id,
+      phase_id: input.phase_id,
+      count: input.variables.length
+    })
+    // 覆盖式：清空该阶段（分支内）现有变量后重写
+    ExperimentDao.clearPhaseVariables(input.phase_id)
+    input.variables.forEach((v, idx) => {
+      ExperimentDao.upsertPhaseVariable({
+        project_id: input.project_id,
+        phase_id: input.phase_id,
+        branch_id: input.branch_id ?? null,
+        key: v.key,
+        name: v.name,
+        type: (v.type as ExperimentPhaseVariable['type']) ?? 'other',
+        unit: v.unit ?? '',
+        default_value: v.default_value ?? '',
+        current_value: v.current_value ?? '',
+        options: JSON.stringify(v.options ?? []),
+        is_agent_generated: v.is_agent_generated === false ? 0 : 1,
+        description: v.description ?? '',
+        sort_order: v.sort_order ?? idx
+      })
+    })
+    notifyStateChange(input.project_id, 'record-added', input.phase_id)
+    return `阶段 ${input.phase_id} 的实验变量已更新（共 ${input.variables.length} 个）。`
+  },
+  {
+    name: 'update_phase_variables',
+    description:
+      '用户自定义增/删/改某阶段的实验变量（覆盖式更新：传入完整新清单）。用户在界面上编辑阶段实验变量后调用。',
+    schema: z.object({
+      project_id: z.number(),
+      phase_id: z.number(),
+      branch_id: z.number().optional(),
+      variables: z.array(
+        z.object({
+          id: z.number().optional(),
+          key: z.string(),
+          name: z.string(),
+          type: z.string().optional(),
+          unit: z.string().optional(),
+          default_value: z.string().optional(),
+          current_value: z.string().optional(),
+          options: z.array(z.string()).optional(),
+          is_agent_generated: z.boolean().optional(),
+          description: z.string().optional(),
+          sort_order: z.number().optional()
+        })
+      )
+    })
+  }
+)
+
+export const saveExperimentEventTool = tool(
+  async (input: {
+    project_id: number
+    phase_id?: number
+    step_id?: number
+    branch_id?: number
+    step_experiment_id?: number
+    name: string
+    content?: string
+    media_paths?: string[]
+  }) => {
+    const { id } = ExperimentDao.addEvent({
+      project_id: input.project_id,
+      phase_id: input.phase_id ?? null,
+      step_id: input.step_id ?? null,
+      branch_id: input.branch_id ?? null,
+      step_experiment_id: input.step_experiment_id ?? null,
+      name: input.name,
+      content: input.content,
+      media_paths: input.media_paths ?? []
+    })
+    notifyStateChange(input.project_id, 'record-added', id)
+    return `实验事件"${input.name}"已记录（eventId=${id}）。该事件会在后续阶段小结与综合对比中引用。`
+  },
+  {
+    name: 'save_experiment_event',
+    description:
+      '记录本阶段实验过程中用户认为会影响后续实验的事件（可附图片/视频附件）。事件独立于记录，供后续阶段/综合对比引用。',
+    schema: z.object({
+      project_id: z.number(),
+      phase_id: z.number().optional(),
+      step_id: z.number().optional().describe('所属步骤 id（空 = 阶段级，v3）'),
+      branch_id: z.number().optional(),
+      step_experiment_id: z.number().optional().describe('所属步骤级并行实验变体 id（空 = 步骤默认执行，v3）'),
+      name: z.string().describe('事件名称，如"反应液突然变黑"'),
+      content: z.string().optional().describe('事件描述（Markdown）'),
+      media_paths: z.array(z.string()).optional().describe('附件本地路径（图片/视频）')
+    })
+  }
+)
+
+// ==================== v0.9/v0.10：项目间共享 ====================
+
+export const addProjectLinkTool = tool(
+  async ({ project_id, ref_project_id, scope }: { project_id: number; ref_project_id: number; scope?: string }) => {
+    console.log('[ExperimentTools] add_project_link 开始:', { project_id, ref_project_id, scope })
+    if (!ProjectDao.findById(project_id)) return `项目 ${project_id} 不存在。`
+    if (!ProjectDao.findById(ref_project_id)) return `被参考项目 ${ref_project_id} 不存在。`
+    if (project_id === ref_project_id) return '不能参考项目自身。'
+    const targetScope = scope ?? 'documents'
+    const { id } = ProjectLinkDao.addLink(project_id, ref_project_id, targetScope)
+    const scopeDesc = targetScope === 'documents' ? '仅文献' : targetScope === 'summaries' ? '文献+实验摘要' : '全部内容'
+    return `已添加参考项目（linkId=${id}），共享范围：${scopeDesc}。` +
+      (targetScope === 'documents'
+        ? '如需参考其实验具体内容，请通过 request_project_share 向作者申请。'
+        : '')
+  },
+  {
+    name: 'add_project_link',
+    description:
+      '添加"参考项目"：本项目查询文献时可同时参考对方项目内容（默认仅文献，scope=documents 直接建立；更高范围走共享请求）。用户添加参考项目后调用。',
+    schema: z.object({
+      project_id: z.number(),
+      ref_project_id: z.number().describe('被参考项目 id'),
+      scope: z.enum(['documents', 'summaries', 'all']).optional()
+    })
+  }
+)
+
+export const removeProjectLinkTool = tool(
+  async ({ project_id, link_id }: { project_id: number; link_id: number }) => {
+    ProjectLinkDao.removeLink(link_id)
+    notifyStateChange(project_id, 'project-status', link_id)
+    return '参考项目关系已移除，即刻失效。'
+  },
+  {
+    name: 'remove_project_link',
+    description: '移除"参考项目"关系。',
+    schema: z.object({
+      project_id: z.number(),
+      link_id: z.number().describe('project_links.id')
+    })
+  }
+)
+
+export const requestProjectShareTool = tool(
+  async (input: {
+    project_id: number
+    target_project_id: number
+    scope: 'summaries' | 'all'
+    reason?: string
+  }) => {
+    console.log('[ExperimentTools] request_project_share 开始:', JSON.stringify(input))
+    if (input.project_id === input.target_project_id) return '不能向自身申请共享。'
+    const { id } = ProjectLinkRequestDao.create({
+      project_id: input.project_id,
+      target_project_id: input.target_project_id,
+      scope: input.scope,
+      reason: input.reason
+    })
+    notifyShareRequestReceived(input.target_project_id, id)
+    const target = ProjectDao.findById(input.target_project_id)
+    return `已向项目"${target?.name ?? input.target_project_id}"作者发送共享请求（请求范围：${input.scope === 'all' ? '全部内容' : '文献+实验摘要'}）。待作者审批。`
+  },
+  {
+    name: 'request_project_share',
+    description:
+      '向目标项目作者发起共享请求，申请参考其实验具体内容（summaries=文献+实验摘要 / all=全部内容）。作者审批通过后本项目对该项目的共享范围提升。',
+    schema: z.object({
+      project_id: z.number(),
+      target_project_id: z.number().describe('被请求项目 id（作者审批）'),
+      scope: z.enum(['summaries', 'all']),
+      reason: z.string().optional().describe('申请理由')
+    })
+  }
+)
+
+export const respondProjectShareTool = tool(
+  async ({ request_id, decision }: { request_id: number; decision: 'approve' | 'reject' }) => {
+    const req = ProjectLinkRequestDao.findById(request_id)
+    if (!req) return `共享请求 ${request_id} 不存在。`
+    ProjectLinkRequestDao.resolve(request_id, decision)
+    notifyShareResolved(req.project_id, request_id, decision)
+    return decision === 'approve'
+      ? `已同意共享请求，请求方对您的共享范围已提升。`
+      : '已拒绝共享请求。'
+  },
+  {
+    name: 'respond_project_share',
+    description: '项目作者审批共享请求：approve（同意，提升请求方共享范围）/ reject（拒绝）。',
+    schema: z.object({
+      request_id: z.number(),
+      decision: z.enum(['approve', 'reject'])
+    })
+  }
+)
+
+export const listShareRequestsTool = tool(
+  async ({ project_id, asRequester }: { project_id: number; asRequester: boolean }) => {
+    const requests = asRequester
+      ? ProjectLinkRequestDao.sent(project_id)
+      : ProjectLinkRequestDao.received(project_id)
+    if (!requests.length) return asRequester ? '暂无发起的共享请求。' : '暂无收到的共享请求。'
+    return (
+      (asRequester ? '我发起的共享请求：\n' : '待我审批的共享请求：\n') +
+      requests
+        .map(
+          (r) =>
+            `- 请求#${r.id}：${r.target_owner_name || r.target_project_id}（${r.scope}）` +
+            `，状态 ${r.status}${r.reason ? `，理由: ${r.reason}` : ''}`
+        )
+        .join('\n')
+    )
+  },
+  {
+    name: 'list_share_requests',
+    description: '列出共享请求：asRequester=false 列出我方收到的待审批请求，asRequester=true 列出我方发起的请求。',
+    schema: z.object({
+      project_id: z.number(),
+      asRequester: z.boolean().describe('true=我方发起 / false=我方收到')
+    })
+  }
+)
+
+// ==================== v0.8：综合对比分析（能力④） ====================
+
+export const comprehensiveAnalysisTool = tool(
+  async (input: {
+    project_id: number
+    question: string
+    branch_ids?: number[]
+    reference_project_ids?: number[]
+  }) => {
+    console.log('[ExperimentTools] comprehensive_analysis 开始:', {
+      project_id: input.project_id,
+      question: input.question.slice(0, 80)
+    })
+    const project = ProjectDao.findById(input.project_id)
+    if (!project) return `项目 ${input.project_id} 不存在。`
+
+    // 汇总全部分支数据（主线 + 各分叉）
+    const branches = ExperimentDao.branches(input.project_id)
+    const parts: string[] = []
+    parts.push(`项目：${project.name}`)
+    parts.push('')
+    const lines: string[] = []
+    lines.push(`### 主线数据`)
+    const mainRecords = ExperimentDao.records(input.project_id, null)
+    lines.push(mainRecords.length ? mainRecords.map((r) => `- ${r.name}（符合度 ${r.compliance_percent ?? 'N/A'}%）: ${r.content}`).join('\n') : '（主线暂无记录）')
+    const mainPredictions = PredictionDao.findByProject(input.project_id).filter((p) => !p.branch_id)
+    if (mainPredictions.length) {
+      lines.push(`### 主线预测`)
+      mainPredictions.forEach((p) => lines.push(`- ${p.name}: ${p.predicted_result.slice(0, 200)}`))
+    }
+    for (const b of branches) {
+      if (input.branch_ids?.length && !input.branch_ids.includes(b.id)) continue
+      lines.push(`### 分叉「${b.name}」（branchId=${b.id}，${b.index_status === 'indexed' ? '已入库' : '未完成/未入库'}）`)
+      const recs = ExperimentDao.branchRecords(b.id)
+      lines.push(recs.length ? recs.map((r) => `- ${r.name}（符合度 ${r.compliance_percent ?? 'N/A'}%）: ${r.content}`).join('\n') : '（该分支暂无记录，数据不完整）')
+      const preds = PredictionDao.findByProject(input.project_id).filter((p) => p.branch_id === b.id)
+      if (preds.length) {
+        preds.forEach((p) => lines.push(`- 预测 ${p.name}: ${p.predicted_result.slice(0, 200)}`))
+      }
+    }
+    parts.push(lines.join('\n'))
+
+    // 文献支撑（MinerU 结构化图表数据 + 正文关键段落）
+    const docs = ProjectDocumentDao.findByProject(input.project_id)
+    const docParts: string[] = []
+    for (const pd of docs) {
+      const doc = DocumentDao.findById(pd.document_id)
+      if (doc) docParts.push(doc.content.slice(0, 3000))
+    }
+    if (docParts.length) parts.push(`### 文献内容\n${docParts.join('\n---\n')}`)
+
+    // v0.9：参考项目召回（跨项目共享，默认仅文献范围可召回）
+    const referenceIds = input.reference_project_ids ?? ProjectLinkDao.findByProject(input.project_id)
+      .filter((l) => l.scope !== 'documents')
+      .map((l) => l.ref_project_id)
+    if (referenceIds.length) {
+      const refTexts = await searchProjectSummaries(project.name, 4, input.project_id, referenceIds)
+      if (refTexts.length) parts.push(`### 参考项目召回\n${refTexts.map((s) => `- ${s}`).join('\n')}`)
+    }
+
+    let result
+    try {
+      result = await comprehensiveAnalysis(parts.join('\n\n'), input.question)
+    } catch (err) {
+      console.error('[ExperimentTools] 综合对比失败:', err)
+      return `综合对比失败: ${err instanceof Error ? err.message : String(err)}`
+    }
+
+    const out: string[] = []
+    out.push(`## 综合对比分析`)
+    out.push('')
+    out.push(`**问题**: ${input.question}`)
+    out.push('')
+    out.push(`**综合分析**: ${result.summary}`)
+    out.push('')
+    out.push(`### 各分支对比`)
+    if (result.branch_compare.length) {
+      out.push('| 分支 | 关键结果 | 符合预期 | 优缺点 |')
+      out.push('|---|---|---|---|')
+      result.branch_compare.forEach((b) =>
+        out.push(`| ${b.name} | ${b.key_results} | ${b.compliance} | ${b.pros_cons} |`)
+      )
+    } else {
+      out.push('（暂无分支对比数据）')
+    }
+    out.push('')
+    out.push(`**文献支撑**: ${result.literature_support}`)
+    out.push('')
+    out.push(`**结论与建议**: ${result.conclusion}`)
+    return out.join('\n')
+  },
+  {
+    name: 'comprehensive_analysis',
+    description:
+      '综合所有并行实验分叉的真实数据 + AI 预测结果 + 文献内容（可含参考项目）回答用户问题，输出分支对比与结论。' +
+      '用户在预测实验页提出对比类问题时调用。',
+    schema: z.object({
+      project_id: z.number(),
+      question: z.string().describe('用户问题，如"哪个条件最优？""温度提高10°C会怎样？"'),
+      branch_ids: z.array(z.number()).optional().describe('限定对比的分支 id（空 = 全部分支）'),
+      reference_project_ids: z.array(z.number()).optional().describe('参考项目 id 列表（跨项目共享）')
+    })
   }
 )

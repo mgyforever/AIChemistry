@@ -1,11 +1,11 @@
-◇ injected env (7) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+◇ injected env (9) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
 [Model] 初始化模型配置: {
   model: 'deepseek-v4-flash',
   baseURL: 'https://api.deepseek.com',
   hasApiKey: true
 }
-◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
 ◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
 ◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
 [App] 应用就绪, 开始初始化数据库
 [DB] initDatabases 开始
@@ -17,665 +17,510 @@
 [App] 数据库初始化完成
 [App] AI IPC 处理器注册完成
 [App] 文件 IPC 处理器注册完成
+[App] 步骤详情窗口 IPC 处理器注册完成
 [App] 创建主窗口
 [App] 主窗口创建完成
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[Renderer:1] [Preload] 暴露 API 完成 (F:\chemistry\AIChemistry\demo\out\preload\index.js:171)
+[Renderer:0] [vite] connecting... (http://localhost:5173/@vite/client:733)
+[Renderer:0] [vite] connected. (http://localhost:5173/@vite/client:827)
+[Renderer:1] [Store] 主题初始化完成，模式: light (http://localhost:5173/src/stores/theme.ts:15)
+[Renderer:1] [Main] 渲染进程启动，主题初始化完成: light (http://localhost:5173/src/main.ts:7)
+[Renderer:1] [Main] 应用挂载完成 (http://localhost:5173/src/main.ts:11)
+[Renderer:1] [Router] 路由跳转: / → /lab (http://localhost:5173/src/router/index.ts:55)
+[Renderer:1] [Component] LabTopBar 挂载, title: 实验管理台 (http://localhost:5173/src/components/lab/LabTopBar.vue:18)
+[Renderer:1] [View] ExperimentLab 挂载, 实验数: 3 (http://localhost:5173/src/views/ExperimentLab.vue:125)
+[Renderer:1] [Router] 路由跳转: /lab → /repro (http://localhost:5173/src/router/index.ts:55)
+[Renderer:1] [Component] LabTopBar 挂载, title: 文献复现工作台 (http://localhost:5173/src/components/lab/LabTopBar.vue:18)
+[Renderer:1] [Component] ProjectSidebar 挂载, 项目数: 0 (http://localhost:5173/src/components/repro/ProjectSidebar.vue:20)
+[Renderer:1] [Component] PlanPanel 挂载 (http://localhost:5173/src/components/repro/PlanPanel.vue:14)
+[Renderer:1] [Component] AgentPanel 挂载, 初始消息数: 0 (http://localhost:5173/src/components/repro/AgentPanel.vue:51)
+[Renderer:1] [View] ReproductionLab 挂载，开始加载项目列表 (http://localhost:5173/src/views/ReproductionLab.vue:213)
+[Renderer:1] [Store] repro loadProjects 开始 (http://localhost:5173/src/stores/repro.ts:71)
 [IPC] 调用 db:project-list:
-[IPC] 完成 db:project-list: 0ms
-[IPC] 调用 db:project-context: 11
+[IPC] 完成 db:project-list: 1ms
+[Renderer:1] [Store] repro loadProjects 完成, 项目数: 1 (http://localhost:5173/src/stores/repro.ts:74)
+[Renderer:1] [View] 恢复上次项目: 20 demo (http://localhost:5173/src/views/ReproductionLab.vue:219)
+[Renderer:1] [View] 切换项目: 20 (http://localhost:5173/src/views/ReproductionLab.vue:230)
+[Renderer:1] [Store] repro selectProject 开始, 项目ID: 20 (http://localhost:5173/src/stores/repro.ts:77)
+[Renderer:1] [Store] repro refreshContext 开始, 项目ID: 20 (http://localhost:5173/src/stores/repro.ts:101)
+[IPC] 调用 db:project-context: 20
 [IPC] 完成 db:project-context: 1ms
-[IPC] 调用 db:project-delete: 11
-[DAO] ProjectDao.delete, id: 11
-[DAO] ProjectDao.delete 清理孤儿文献 document_id: 9
-[DAO] ProjectDao.delete 完成, id: 11 , 已级联清理关联数据
-[LanceDB] deleteRows 开始, 表名: project_summaries, filter: project_id = 11
-[LanceDB] deleteRows 完成, 表名: project_summaries, filter: project_id = 11
-[IPC] 完成 db:project-delete: 12ms
-[IPC] 调用 db:project-list:
-[IPC] 完成 db:project-list: 0ms
-[IPC] 调用 db:project-create: "test", ""
-[DAO] ProjectDao.create, name: test
-[DAO] ProjectDao.create 完成, id: 12
-[IPC] 完成 db:project-create: 1ms
-[IPC] 调用 db:project-list:
-[IPC] 完成 db:project-list: 0ms
-[IPC] 调用 db:project-context: 12
-[IPC] 完成 db:project-context: 1ms
-[IPC] 调用 ai:experiment-chat-stream: {"projectId":12,"message":"项目\"test\"已创建（空项目）。请引导用户上传文献以生成复现方案，或先说明如何使用本工作台。","history":[]}
-[AI] experimentChat 开始: { projectId: 12, msgLen: 47 }
-[ExperimentAgent] 开始执行: {
-  projectId: 12,
-  msgCount: 1,
-  lastInput: '项目"test"已创建（空项目）。请引导用户上传文献以生成复现方案，或先说明如何使用本工作台。'
-}
-[ExperimentTools] get_project 开始: { name: 'test', project_id: null }
-[DAO] ProjectDao.findByName, name: test
-[Summaries] searchProjectSummaries 开始: { query: 'test', limit: 5, projectId: 12 }
+[Renderer:1] [Store] repro refreshContext 完成: 材料0 步骤0 阶段0 记录0 预测0 论文0 (http://localhost:5173/src/stores/repro.ts:103)
+[IPC] 调用 db:project-chat-list: 20
+[IPC] 完成 db:project-chat-list: 0ms
+[Renderer:1] [Store] repro selectProject 完成, 项目ID: 20 , 恢复对话数: 2 (http://localhost:5173/src/stores/repro.ts:83)
+[Renderer:1] [Component] ChartCard 挂载, 图表: 实验复现工作台使用流程 类型: timeline (http://localhost:5173/src/components/repro/ChartCard.vue:76)
+[Renderer:1] [View] 项目切换完成: 20 (http://localhost:5173/src/views/ReproductionLab.vue:233)
+[Renderer:1] [View] ReproductionLab 项目加载完成，共 1 个 (http://localhost:5173/src/views/ReproductionLab.vue:222)
+[Renderer:1] [Component] ProjectSidebar 确认删除项目: 20 (http://localhost:5173/src/components/repro/ProjectSidebar.vue:51)
+[Renderer:1] [View] 删除项目: 20 (http://localhost:5173/src/views/ReproductionLab.vue:127)
+[Renderer:1] [Store] repro deleteProject 开始, 项目ID: 20 (http://localhost:5173/src/stores/repro.ts:135)
+[IPC] 调用 db:project-delete: 20
+[DAO] ProjectDao.delete, id: 20
+[DAO] ProjectDao.delete 清理孤儿文献 document_id: 18
+[DAO] ProjectDao.delete 完成, id: 20 , 已级联清理关联数据
 [LanceDB] tableExists 开始, 表名: project_summaries
+[LanceDB] tableExists 完成, 表名: project_summaries, 存在: true
+[Summaries] 删除项目向量摘要, projectId: 20
+[LanceDB] deleteRows 开始, 表名: project_summaries, filter: project_id = 20
+[LanceDB] deleteRows 完成, 表名: project_summaries, filter: project_id = 20
+[Files] 已清理项目媒体目录: F:\chemistry\AIChemistry\demo\src\main\database\data\repro-media\20
+[IPC] 完成 db:project-delete: 12ms
+[Renderer:1] [Store] repro loadProjects 开始 (http://localhost:5173/src/stores/repro.ts:71)
+[IPC] 调用 db:project-list:
+[IPC] 完成 db:project-list: 0ms
+[Renderer:1] [Store] repro loadProjects 完成, 项目数: 0 (http://localhost:5173/src/stores/repro.ts:74)
+[Renderer:1] [Store] repro deleteProject 完成, 项目ID: 20 (http://localhost:5173/src/stores/repro.ts:145)
+[Renderer:1] [Component] ProjectSidebar 提交创建项目: demo (http://localhost:5173/src/components/repro/ProjectSidebar.vue:44)
+[Renderer:1] [View] 创建项目: demo (http://localhost:5173/src/views/ReproductionLab.vue:236)
+[Renderer:1] [Store] repro createProject 开始, 名称: demo (http://localhost:5173/src/stores/repro.ts:128)
+[IPC] 调用 db:project-create: "demo", ""
+[DAO] ProjectDao.create, name: demo
+[DAO] ProjectDao.create 完成, id: 21
+[IPC] 完成 db:project-create: 1ms
+[Renderer:1] [Store] repro loadProjects 开始 (http://localhost:5173/src/stores/repro.ts:71)
+[IPC] 调用 db:project-list:
+[IPC] 完成 db:project-list: 0ms
+[Renderer:1] [Store] repro loadProjects 完成, 项目数: 1 (http://localhost:5173/src/stores/repro.ts:74)
+[Renderer:1] [Store] repro createProject 完成, 项目ID: 21 (http://localhost:5173/src/stores/repro.ts:131)
+[Renderer:1] [Store] repro selectProject 开始, 项目ID: 21 (http://localhost:5173/src/stores/repro.ts:77)
+[Renderer:1] [Store] repro refreshContext 开始, 项目ID: 21 (http://localhost:5173/src/stores/repro.ts:101)
+[IPC] 调用 db:project-context: 21
+[IPC] 完成 db:project-context: 1ms
+[Renderer:1] [Store] repro refreshContext 完成: 材料0 步骤0 阶段0 记录0 预测0 论文0 (http://localhost:5173/src/stores/repro.ts:103)
+[IPC] 调用 db:project-chat-list: 21
+[IPC] 完成 db:project-chat-list: 0ms
+[Renderer:1] [Store] repro selectProject 完成, 项目ID: 21 , 恢复对话数: 0 (http://localhost:5173/src/stores/repro.ts:83)
+[Renderer:1] [View] 项目创建完成: 21 (http://localhost:5173/src/views/ReproductionLab.vue:240)
+[Renderer:1] [Store] repro sendMessage 开始: 项目"demo"已创建（空项目）。请引导用户上传文献以生成复现方案，或先说明如何使用本工作台。 (http://localhost:5173/src/stores/repro.ts:200)
+[IPC] 调用 db:project-chat-create: 21, "user", "项目\"demo\"已创建（空项目）。请引导用户上传文献以生成复现方案，或先说明如何使 用本工作台。", undefined
+[DAO] ProjectChatDao.create, projectId: 21 , role: user , len: 47
+[IPC] 完成 db:project-chat-create: 1ms
+[IPC] 调用 ai:experiment-chat-stream: {"projectId":21,"message":"项目\"demo\"已创建（空项目）。请引导用户上传文献以生成复现方案，或先说明如何使用本工作台。","history":[]}
+[AI] experimentChat 开始: { projectId: 21, msgLen: 47 }
+[ExperimentAgent] 开始执行: {
+  projectId: 21,
+  msgCount: 1,
+  lastInput: '项目"demo"已创建（空项目）。请引导用户上传文献以生成复现方案，或先说明如何使用本工作台。'
+}
 [ExperimentTools] list_projects 开始
 [ExperimentTools] list_projects 完成: { resultLen: 87 }
+[ExperimentTools] get_project 开始: { name: 'demo', project_id: null }
+[DAO] ProjectDao.findByName, name: demo
+[Summaries] searchProjectSummaries 开始: { query: 'demo', limit: 5, projectId: 21, refCount: 0 }
+[LanceDB] tableExists 开始, 表名: project_summaries
+[ExperimentAgent] 工具调用: list_projects
 [ExperimentAgent] 工具调用: get_project
 [LanceDB] tableExists 完成, 表名: project_summaries, 存在: true
 [Embedding] 开始向量化文本，文本长度: 4
 [Embedding] 本地模型加载成功: Xenova/all-MiniLM-L6-v2
 [Embedding] 向量化完成，维度: 384
 [LanceDB] searchVectors 开始, 表名: project_summaries, limit: 15, 向量维度: 384
-[LanceDB] searchVectors 完成, 表名: project_summaries, 结果条数: 3
+[LanceDB] searchVectors 完成, 表名: project_summaries, 结果条数: 10
 [Summaries] searchProjectSummaries 完成: { hitCount: 0 }
-[ExperimentTools] get_project 完成: { projectId: 12, resultLen: 21, summaryCount: 0 }
-[ExperimentAgent] 工具调用: list_projects
+[ExperimentTools] get_project 完成: { projectId: 21, resultLen: 21, summaryCount: 0 }
+[Renderer:1] [View] 导入文献开始 (http://localhost:5173/src/views/ReproductionLab.vue:244)
+[Renderer:1] [Store] repro importDocuments 开始 (http://localhost:5173/src/stores/repro.ts:167)
 [IPC] 调用 file:open:
-[ExperimentAgent] 执行完成: { thinkLen: 91, msgLen: 926, chartCount: 1 }
-[AI] experimentChat 完成: { resultLen: 1521 }
-[IPC] 完成 ai:experiment-chat-stream: 8563ms
-[IPC] 调用 db:project-context: 12
+[ExperimentAgent] 执行完成: { thinkLen: 161, msgLen: 878, chartCount: 0 }
+[AI] experimentChat 完成: { resultLen: 1100 }
+[IPC] 完成 ai:experiment-chat-stream: 14450ms
+[IPC] 调用 db:project-chat-create: 21, "assistant", "项目 **demo**（ID 21）已就绪，当前为**空项目**，尚未导入文献、也没有生成复现方案。\n\n## 工作台整体流程\n\n1. **创建项目** —— 已完成 ✅（demo 项目已创建，状态 o...", "[]"
+[DAO] ProjectChatDao.create, projectId: 21 , role: assistant , len: 878
+[IPC] 完成 db:project-chat-create: 0ms
+[Renderer:1] [Store] repro refreshContext 开始, 项目ID: 21 (http://localhost:5173/src/stores/repro.ts:101)
+[IPC] 调用 db:project-context: 21
 [IPC] 完成 db:project-context: 0ms
+[Renderer:1] [Store] repro refreshContext 完成: 材料0 步骤0 阶段0 记录0 预测0 论文0 (http://localhost:5173/src/stores/repro.ts:103)
+[Renderer:1] [Store] repro sendMessage 完成, 当前消息数: 2 (http://localhost:5173/src/stores/repro.ts:222)
 [Files] 文件选择完成，选中数量: 1
-[IPC] 完成 file:open: 13189ms
+[IPC] 完成 file:open: 4594ms
 [IPC] 调用 file:import: ["F:\\chemistry\\AIChemistry\\demo\\resources\\paper\\C.I.颜料红177中间体的制备工艺改进.pdf"]
 [Files] 开始导入文件，数量: 1 路径: [
   'F:\\chemistry\\AIChemistry\\demo\\resources\\paper\\C.I.颜料红177中间体的制备工艺改进.pdf'
 ]
-[Reader] 开始读取文件: F:\chemistry\AIChemistry\demo\resources\paper\C.I.颜料红177中间体的制备工艺改进.pdf
-[Reader] 文件扩展名: .pdf
-[Reader] 读取完成: {"title":"C.I.颜料红177中间体的制备工艺改进","textLength":13562,"imageCount":0,"tableCount":0}
-[DAO] DocumentDao.create, title: C.I.颜料红177中间体的制备工艺改进 , content: C.I.颜料红 177中间体的制备工艺改进
-张天永a,b 任忠静a 李 彬a 姜 爽a 史继星a 石志强c 吕东军d,e
-(a
-天津大学化工学院,天津市应用催化科学与工程重点实验室 天津 300354...
-[DAO] DocumentDao.create 完成, id: 10
-[Figures] 开始解析图表，docId: 10 图片数: 0 表格数: 0
-[Figures] 图表解析完成，docId: 10 入库总数: 0
-[Files] 文件导入成功: {"docId":10,"title":"C.I.颜料红177中间体的制备工艺改进","contentLength":13562,"figureCount":0}
+[MinerU] 开始精准解析: F:\chemistry\AIChemistry\demo\resources\paper\C.I.颜料红177中间体的制备工艺改进.pdf
+[MinerU] 文件上传完成, batch_id: a3f10bb9-620c-4b19-a141-ea5f60c60206
+[MinerU] 解析完成: { textLen: 14806, mdLen: 14806, tableCount: 2, imageCount: 2 }
+[DAO] DocumentDao.create, title: C.I.颜料红177中间体的制备工艺改进 , content: # C．I．颜料红 177中间体的制备工艺改进
+
+张天永“,b任忠静“李 彬“\*姜 爽“\*史继星“石志强吕东军d,e
+
+（<sup>a</sup>天津大学化工学院，天津市应用催化科学与工程重点实验...
+[DAO] DocumentDao.create 完成, id: 19
+[MinerU] 文献 markdown 已保存: F:\chemistry\AIChemistry\demo\src\main\database\data\papers_md\19-C.I.颜料红177中间体的制备工艺 改进.md
+[DAO] DocumentDao.update, id: 19 , title: C.I.颜料红177中间体的制备工艺改进 , content: # C．I．颜料红 177中间体的制备工艺改进
+
+张天永“,b任忠静“李 彬“\*姜 爽“\*史继星“石志强吕东军d,e
+
+（<sup>a</sup>天津大学化工学院，天津市应用催化科学与工程重点实验...
+[DAO] DocumentDao.update 完成, id: 19
+[Figures] 开始解析图表，docId: 19 图片数: 2 表格数: 2
+[DAO] FigureDao.create, document_id: 19 , figure_type: table , caption: undefined
+[DAO] FigureDao.create 完成, id: 9
+[DAO] FigureDao.create, document_id: 19 , figure_type: table , caption: undefined
+[DAO] FigureDao.create 完成, id: 10
+[VLM] 开始识别图片，已配置: true 图片数据长度: 28043
+[VLM] 识别成功: {"type":"chemical_structure","subtype":"scheme","captionLength":28}
+[Figures] 图片走 VLM 识别成功，docId: 19 图片序号: 1
+[DAO] FigureDao.create, document_id: 19 , figure_type: chemical_structure , caption: 铜粉催化下溴氨酸钠(BrNNa)的Ullmann偶联反应
+[DAO] FigureDao.create 完成, id: 11
+[VLM] 开始识别图片，已配置: true 图片数据长度: 68879
+[VLM] 识别成功: {"type":"chemical_structure","subtype":"mechanism","captionLength":39}
+[Figures] 图片走 VLM 识别成功，docId: 19 图片序号: 2
+[DAO] FigureDao.create, document_id: 19 , figure_type: chemical_structure , caption: 铜催化的1-氨基-4-溴-9,10-蒽醌-2-磺酸钠Ullmann偶联反应机理
+[DAO] FigureDao.create 完成, id: 12
+[Figures] 图表解析完成，docId: 19 入库总数: 4
+[Files] 文件导入成功: {"docId":19,"title":"C.I.颜料红177中间体的制备工艺改进","contentLength":14806,"figureCount":4,"parser":"mineru","mdPath":"F:\\chemistry\\AIChemistry\\demo\\src\\main\\database\\data\\papers_md\\19-C.I.颜料红177中间体的制备工艺改进.md"}
 [Files] 全部导入完成，成功: 1 / 1
-[IPC] 完成 file:import: 201ms
-[IPC] 调用 ai:project-parse-documents: 12, [10]
-[AI] parseDocumentsIntoProject 开始: { projectId: 12, docCount: 1 }
-[DAO] ProjectDocumentDao.create, projectId: 12 , documentId: 10 , role: source
-[DAO] ProjectDocumentDao.create 完成, id: 7
-[Pipeline] extractDocument 开始: { docLen: 13562 }
+[IPC] 完成 file:import: 310675ms
+[Renderer:1] [Store] repro importDocuments 完成, 导入结果数: 1 (http://localhost:5173/src/stores/repro.ts:174)
+[Renderer:1] [View] 文献导入完成, document_ids: 19 (http://localhost:5173/src/views/ReproductionLab.vue:248)
+[Renderer:1] [Store] repro parseDocumentsToProject 开始, 项目ID: 21 , 文档数: 1 (http://localhost:5173/src/stores/repro.ts:180)
+[IPC] 调用 ai:project-parse-documents: 21, [19]
+[AI] parseDocumentsIntoProject 开始: { projectId: 21, docCount: 1 }
+[DAO] ProjectDocumentDao.create, projectId: 21 , documentId: 19 , role: source
+[DAO] ProjectDocumentDao.create 完成, id: 16
+[Pipeline] extractDocument 开始: { docLen: 14806 }
 [Pipeline] callJson 开始: {
   systemHead: '你是化学实验复现专家。根据给定的文献内容，抽取可复现该化学实验的完整结构化方案。\n【铁律】所有信息必须直接来源于文献内容',
-  inputLen: 13583
+  inputLen: 14827
 }
-[Pipeline] callJson 解析失败: {
-  rawLen: 9638,
-  costMs: 96942,
-  err: Error: 模型输出无法解析为 JSON
-      at parseJsonStrict (F:\chemistry\AIChemistry\demo\out\main\index.js:2359:15)
-      at callJson (F:\chemistry\AIChemistry\demo\out\main\index.js:2334:20)
-      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-      at async extractDocument (F:\chemistry\AIChemistry\demo\out\main\index.js:2420:20)
-      at async parseDocumentsIntoProject (F:\chemistry\AIChemistry\demo\out\main\index.js:3099:22)
-      at async F:\chemistry\AIChemistry\demo\out\main\index.js:3878:22
-      at async Session.<anonymous> (node:electron/js2c/browser_init:2:112762)
+[Pipeline] callJson 完成: { rawLen: 12509, parsed: true, costMs: 240869 }
+[Pipeline] extractDocument 完成: {
+  materials: 13,
+  reactions: 1,
+  steps: 9,
+  instruments: 9,
+  characterizations: 5,
+  concerns: 6,
+  gaps: 10,
+  phases: 3,
+  summaryLen: 229
 }
-[Pipeline] extractDocument 失败: Error: 模型输出无法解析为 JSON
-    at parseJsonStrict (F:\chemistry\AIChemistry\demo\out\main\index.js:2359:15)
-    at callJson (F:\chemistry\AIChemistry\demo\out\main\index.js:2334:20)
-    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async extractDocument (F:\chemistry\AIChemistry\demo\out\main\index.js:2420:20)
-    at async parseDocumentsIntoProject (F:\chemistry\AIChemistry\demo\out\main\index.js:3099:22)
-    at async F:\chemistry\AIChemistry\demo\out\main\index.js:3878:22
-    at async Session.<anonymous> (node:electron/js2c/browser_init:2:112762)
-[IPC] 失败 ai:project-parse-documents: Error: 模型输出无法解析为 JSON
-    at parseJsonStrict (F:\chemistry\AIChemistry\demo\out\main\index.js:2359:15)
-    at callJson (F:\chemistry\AIChemistry\demo\out\main\index.js:2334:20)
-    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async extractDocument (F:\chemistry\AIChemistry\demo\out\main\index.js:2420:20)
-    at async parseDocumentsIntoProject (F:\chemistry\AIChemistry\demo\out\main\index.js:3099:22)
-    at async F:\chemistry\AIChemistry\demo\out\main\index.js:3878:22
-    at async Session.<anonymous> (node:electron/js2c/browser_init:2:112762)
-Error occurred in handler for 'ai:project-parse-documents': Error: 模型输出无法解析为 JSON
-    at parseJsonStrict (F:\chemistry\AIChemistry\demo\out\main\index.js:2359:15)
-    at callJson (F:\chemistry\AIChemistry\demo\out\main\index.js:2334:20)
-    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async extractDocument (F:\chemistry\AIChemistry\demo\out\main\index.js:2420:20)
-    at async parseDocumentsIntoProject (F:\chemistry\AIChemistry\demo\out\main\index.js:3099:22)
-    at async F:\chemistry\AIChemistry\demo\out\main\index.js:3878:22
-    at async Session.<anonymous> (node:electron/js2c/browser_init:2:112762)
-[IPC] 调用 ai:experiment-chat-stream: {"projectId":12,"message":"文献已导入（document_ids=10），但自动解析失败：Error invoking remote method 'ai:project-parse-documents': Err...
-[AI] experimentChat 开始: { projectId: 12, msgLen: 165 }
-[ExperimentAgent] 开始执行: {
-  projectId: 12,
-  msgCount: 3,
-  lastInput: '文献已导入（document_ids=10），但自动解析失败：Error invoking remo'
+[DAO] ReproductionDao.clearMaterials, projectId: 21
+[DAO] ReproductionDao.clearSteps, projectId: 21
+[DAO] ReproductionDao.clearInstruments, projectId: 21
+[DAO] ReproductionDao.clearConcerns, projectId: 21
+[DAO] ReproductionDao.clearReactions, projectId: 21
+[DAO] ReproductionDao.clearCharacterizations, projectId: 21
+[DAO] ReproductionDao.clearGaps, projectId: 21
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 溴氨酸钠
+[DAO] ReproductionDao.addMaterial 完成, id: 98
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 铜粉
+[DAO] ReproductionDao.addMaterial 完成, id: 99
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 无水乙醇
+[DAO] ReproductionDao.addMaterial 完成, id: 100
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 硫酸
+[DAO] ReproductionDao.addMaterial 完成, id: 101
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: N,N-二甲基甲酰胺
+[DAO] ReproductionDao.addMaterial 完成, id: 102
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 甲醇
+[DAO] ReproductionDao.addMaterial 完成, id: 103
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 柠檬酸
+[DAO] ReproductionDao.addMaterial 完成, id: 104
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 二氯甲烷
+[DAO] ReproductionDao.addMaterial 完成, id: 105
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 盐酸
+[DAO] ReproductionDao.addMaterial 完成, id: 106
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 硝酸
+[DAO] ReproductionDao.addMaterial 完成, id: 107
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 正丁醇
+[DAO] ReproductionDao.addMaterial 完成, id: 108
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 醋酸
+[DAO] ReproductionDao.addMaterial 完成, id: 109
+[DAO] ReproductionDao.addMaterial, projectId: 21 , name: 硅胶板
+[DAO] ReproductionDao.addMaterial 完成, id: 110
+[DAO] ReproductionDao.addStep, projectId: 21 , step_no: 1 , title: 铜粉预处理
+[DAO] ReproductionDao.addStep 完成, id: 97
+[DAO] ReproductionDao.addStep, projectId: 21 , step_no: 2 , title: 加入溴氨酸钠和混合溶剂，保温反应
+[DAO] ReproductionDao.addStep 完成, id: 98
+[DAO] ReproductionDao.addStep, projectId: 21 , step_no: 3 , title: 补加铜粉继续反应
+[DAO] ReproductionDao.addStep 完成, id: 99
+[DAO] ReproductionDao.addStep, projectId: 21 , step_no: 4 , title: 加入柠檬酸去除铜盐
+[DAO] ReproductionDao.addStep 完成, id: 100
+[DAO] ReproductionDao.addStep, projectId: 21 , step_no: 5 , title: 趁热过滤
+[DAO] ReproductionDao.addStep 完成, id: 101
+[DAO] ReproductionDao.addStep, projectId: 21 , step_no: 6 , title: 减压蒸馏浓缩滤液
+[DAO] ReproductionDao.addStep 完成, id: 102
+[DAO] ReproductionDao.addStep, projectId: 21 , step_no: 7 , title: 加入二氯甲烷搅拌析出
+[DAO] ReproductionDao.addStep 完成, id: 103
+[DAO] ReproductionDao.addStep, projectId: 21 , step_no: 8 , title: 过滤得到DAS
+[DAO] ReproductionDao.addStep 完成, id: 104
+[DAO] ReproductionDao.addStep, projectId: 21 , step_no: 9 , title: 烘干
+[DAO] ReproductionDao.addStep 完成, id: 105
+[DAO] ReproductionDao.addInstrument, projectId: 21 , name: 四口烧瓶
+[DAO] ReproductionDao.addInstrument 完成, id: 89
+[DAO] ReproductionDao.addInstrument, projectId: 21 , name: 加热搅拌装置
+[DAO] ReproductionDao.addInstrument 完成, id: 90
+[DAO] ReproductionDao.addInstrument, projectId: 21 , name: 过滤装置
+[DAO] ReproductionDao.addInstrument 完成, id: 91
+[DAO] ReproductionDao.addInstrument, projectId: 21 , name: 减压蒸馏装置
+[DAO] ReproductionDao.addInstrument 完成, id: 92
+[DAO] ReproductionDao.addInstrument, projectId: 21 , name: 烘箱
+[DAO] ReproductionDao.addInstrument 完成, id: 93
+[DAO] ReproductionDao.addInstrument, projectId: 21 , name: 高效液相色谱仪（HPLC）
+[DAO] ReproductionDao.addInstrument 完成, id: 94
+[DAO] ReproductionDao.addInstrument, projectId: 21 , name: 等离子体发射光谱仪（ICP）
+[DAO] ReproductionDao.addInstrument 完成, id: 95
+[DAO] ReproductionDao.addInstrument, projectId: 21 , name: 傅里叶变换红外光谱仪（FT-IR）
+[DAO] ReproductionDao.addInstrument 完成, id: 96
+[DAO] ReproductionDao.addInstrument, projectId: 21 , name: TLC薄层色谱设备
+[DAO] ReproductionDao.addInstrument 完成, id: 97
+[DAO] ReproductionDao.addCharacterization, projectId: 21 , method: HPLC
+[DAO] ReproductionDao.addCharacterization 完成, id: 35
+[DAO] ReproductionDao.addCharacterization, projectId: 21 , method: ICP
+[DAO] ReproductionDao.addCharacterization 完成, id: 36
+[DAO] ReproductionDao.addCharacterization, projectId: 21 , method: FT-IR
+[DAO] ReproductionDao.addCharacterization 完成, id: 37
+[DAO] ReproductionDao.addCharacterization, projectId: 21 , method: FT-IR
+[DAO] ReproductionDao.addCharacterization 完成, id: 38
+[DAO] ReproductionDao.addCharacterization, projectId: 21 , method: TLC
+[DAO] ReproductionDao.addCharacterization 完成, id: 39
+[DAO] ReproductionDao.addConcern, projectId: 21 , content: 硫酸具有强腐蚀性，预处理时需佩戴手套和护目镜
+[DAO] ReproductionDao.addConcern 完成, id: 49
+[DAO] ReproductionDao.addConcern, projectId: 21 , content: 减压蒸馏在140°C下进行且涉及有机溶剂，存在暴沸和溶剂蒸气泄漏风险
+[DAO] ReproductionDao.addConcern 完成, id: 50
+[DAO] ReproductionDao.addConcern, projectId: 21 , content: 铜粉分批加入量和时间需按文献控制：先加2.0 g，反应4~4.5 h后补加1.0 g
+[DAO] ReproductionDao.addConcern 完成, id: 51
+[DAO] ReproductionDao.addConcern, projectId: 21 , content: 蒸馏后滤液剩余量需控制在约20 mL，过少会引入杂质，过多会降低收率
+[DAO] ReproductionDao.addConcern 完成, id: 52
+[DAO] ReproductionDao.addConcern, projectId: 21 , content: 甲醇、DMF、二氯甲烷等有机溶剂需回收，避免直排；文献指出溶剂可循环套 用
+[DAO] ReproductionDao.addConcern 完成, id: 53
+[DAO] ReproductionDao.addConcern, projectId: 21 , content: 柠檬酸用量不足时铜盐去除不完全，用量过大则浪费；最佳铜粉与柠檬酸质量比为6:1
+[DAO] ReproductionDao.addConcern 完成, id: 54
+[DAO] ReproductionDao.addReaction, projectId: 21 , equation: \ce{2 C14H7BrNNaO5S + 2 Cu -> C28H14N2Na2O10S2 + 2 CuBr}
+[DAO] ReproductionDao.addReaction 完成, id: 8
+[DAO] ReproductionDao.addGap, projectId: 21 , content: 搅拌速度未给出
+[DAO] ReproductionDao.addGap 完成, id: 56
+[DAO] ReproductionDao.addGap, projectId: 21 , content: 反应是否在惰性气体保护下进行未说明
+[DAO] ReproductionDao.addGap 完成, id: 57
+[DAO] ReproductionDao.addGap, projectId: 21 , content: 减压蒸馏的真空度未给出
+[DAO] ReproductionDao.addGap 完成, id: 58
+[DAO] ReproductionDao.addGap, projectId: 21 , content: 趁热过滤的具体温度未说明
+[DAO] ReproductionDao.addGap 完成, id: 59
+[DAO] ReproductionDao.addGap, projectId: 21 , content: 溴氨酸钠工业品的有效含量/含水量未给出
+[DAO] ReproductionDao.addGap 完成, id: 60
+[DAO] ReproductionDao.addGap, projectId: 21 , content: 柠檬酸的纯度/来源未给出
+[DAO] ReproductionDao.addGap 完成, id: 61
+[DAO] ReproductionDao.addGap, projectId: 21 , content: DAS收率的具体计算公式未给出
+[DAO] ReproductionDao.addGap 完成, id: 62
+[DAO] ReproductionDao.addGap, projectId: 21 , content: 四口烧瓶规格和搅拌器类型未给出
+[DAO] ReproductionDao.addGap 完成, id: 63
+[DAO] ReproductionDao.addGap, projectId: 21 , content: 溶剂循环套用过程中DMF补加量未具体说明
+[DAO] ReproductionDao.addGap 完成, id: 64
+[DAO] ReproductionDao.addGap, projectId: 21 , content: 文献未明确DAS产物是酸式还是钠盐形式
+[DAO] ReproductionDao.addGap 完成, id: 65
+[DAO] ReproductionDao.upsertAssessment, projectId: 21 , difficulty_score: 62 , feasibility: 可行
+[Pipeline] generatePhaseVariables 开始: { phaseName: '铜粉预处理' }
+[Pipeline] callJson 开始: {
+  systemHead: '你是化学实验专家。基于文献中某个实验阶段的描述，列出该阶段可记录/可控的实验变量（温度/时间/配比/催化剂/气氛/搅拌/',
+  inputLen: 6049
 }
-[ExperimentTools] get_project 开始: { name: null, project_id: 12 }
-[Summaries] searchProjectSummaries 开始: { query: 'test', limit: 5, projectId: 12 }
+[Pipeline] callJson 完成: { rawLen: 1044, parsed: true, costMs: 11878 }
+[Pipeline] generatePhaseVariables 开始: { phaseName: '乌尔曼偶联反应' }
+[Pipeline] callJson 开始: {
+  systemHead: '你是化学实验专家。基于文献中某个实验阶段的描述，列出该阶段可记录/可控的实验变量（温度/时间/配比/催化剂/气氛/搅拌/',
+  inputLen: 6070
+}
+[Pipeline] callJson 完成: { rawLen: 3472, parsed: true, costMs: 33605 }
+[Pipeline] generatePhaseVariables 开始: { phaseName: '后处理与纯化' }
+[Pipeline] callJson 开始: {
+  systemHead: '你是化学实验专家。基于文献中某个实验阶段的描述，列出该阶段可记录/可控的实验变量（温度/时间/配比/催化剂/气氛/搅拌/',
+  inputLen: 6063
+}
+[Pipeline] callJson 完成: { rawLen: 1769, parsed: true, costMs: 15410 }
+[DAO] ExperimentDao.addPhase, projectId: 21 , name: 铜粉预处理 , branchId: null
+[DAO] ExperimentDao.addPhase 完成, id: 37
+[DAO] ExperimentDao.addPhase, projectId: 21 , name: 乌尔曼偶联反应 , branchId: null
+[DAO] ExperimentDao.addPhase 完成, id: 38
+[DAO] ExperimentDao.addPhase, projectId: 21 , name: 后处理与纯化 , branchId: null
+[DAO] ExperimentDao.addPhase 完成, id: 39
+[DAO] ExperimentDao.updatePhase, id: 37 , patch: {"status":"in_progress"}
+[DAO] ExperimentDao.updatePhase 完成, id: 37
+[DAO] ProjectDao.update, id: 21 , patch: {"summary":"以5.0 g溴氨酸钠为原料，2.0 g预处理铜粉为催化剂，在100 g甲醇和50 g DMF中于55°C反应4~4.5 h，补加1.0 g铜粉继续0.5~1 h，再加0.5 g柠檬酸反应0.5 h去除铜盐。趁热过滤后140°C减压蒸馏至滤液剩余约20 mL，加20 mL二氯甲烷搅拌2 h，过滤后65°C烘干6 h得DAS。分批加铜较一次性加铜节省2~3 h；铜粉与柠檬酸质量比6:1时铜含量<0.001%、纯度>96%；滤液剩余 量20 mL时收率>95%。"}
+[DAO] ProjectDao.update 完成, id: 21
+[Summaries] addProjectSummaries 开始: { projectId: 21, chunkCount: 10 }
 [LanceDB] tableExists 开始, 表名: project_summaries
-[Pipeline] extractDocument 开始: { docLen: 13562 }
-[Pipeline] callJson 开始: {
-  systemHead: '你是化学实验复现专家。根据给定的文献内容，抽取可复现该化学实验的完整结构化方案。\n【铁律】所有信息必须直接来源于文献内容',
-  inputLen: 13583
+[LanceDB] tableExists 完成, 表名: project_summaries, 存在: true
+[Embedding] 开始向量化文本，文本长度: 229
+[Embedding] 向量化完成，维度: 384
+[Embedding] 开始向量化文本，文本长度: 84
+[Embedding] 向量化完成，维度: 384
+[Embedding] 开始向量化文本，文本长度: 99
+[Embedding] 向量化完成，维度: 384
+[Embedding] 开始向量化文本，文本长度: 43
+[Embedding] 向量化完成，维度: 384
+[Embedding] 开始向量化文本，文本长度: 52
+[Embedding] 向量化完成，维度: 384
+[Embedding] 开始向量化文本，文本长度: 35
+[Embedding] 向量化完成，维度: 384
+[Embedding] 开始向量化文本，文本长度: 49
+[Embedding] 向量化完成，维度: 384
+[Embedding] 开始向量化文本，文本长度: 50
+[Embedding] 向量化完成，维度: 384
+[Embedding] 开始向量化文本，文本长度: 30
+[Embedding] 向量化完成，维度: 384
+[Embedding] 开始向量化文本，文本长度: 28
+[Embedding] 向量化完成，维度: 384
+[LanceDB] addData 开始, 表名: project_summaries, 数据条数: 10
+[LanceDB] addData 完成, 表名: project_summaries, 追加 10 条
+[Summaries] addProjectSummaries 完成: { chunkCount: 10, embedCostMs: 110 }
+[AI] parseDocumentsIntoProject 完成: { projectId: 21, textLen: 523, chartCount: 2 }
+[IPC] 完成 ai:project-parse-documents: 301891ms
+[Renderer:1] [Store] repro refreshContext 开始, 项目ID: 21 (http://localhost:5173/src/stores/repro.ts:101)
+[IPC] 调用 db:project-context: 21
+[IPC] 完成 db:project-context: 2ms
+[Renderer:1] [Store] repro refreshContext 完成: 材料13 步骤9 阶段3 记录0 预测0 论文0 (http://localhost:5173/src/stores/repro.ts:103)
+[Renderer:1] [Store] repro parseDocumentsToProject 完成: [object Object] (http://localhost:5173/src/stores/repro.ts:184)
+[IPC] 调用 db:project-chat-create: 21, "assistant", "已在项目\"demo\"中生成复现方案。\n**实验原理**: 以溴氨酸钠为原料，以铜粉为催化剂，在甲醇/DMF混合溶剂中经乌尔曼偶联反应生成C.I.颜料红177中间体DAS（4,4'-二氨基-1,1'-二...", "[{\"id\":\"materials\",\"title\":\"材料/试剂用量概览\",\"type\":\"bar\",\"echartsOption\":{\"animation\":true,\"grid\":{\"left\"..."
+[DAO] ProjectChatDao.create, projectId: 21 , role: assistant , len: 523
+[IPC] 完成 db:project-chat-create: 161ms
+[Renderer:1] [Store] repro sendMessage 开始: 文献已通过确定性解析写入项目 21（document_ids=19），复现方案已生成。请基于此与用户 (http://localhost:5173/src/stores/repro.ts:200)
+[IPC] 调用 db:project-chat-create: 21, "user", "文献已通过确定性解析写入项目 21（document_ids=19），复现方案已生成。请基于此与 用户继续讨论，用户提出修改建议时用 update_reproduction_plan 调整。", undefined
+[DAO] ProjectChatDao.create, projectId: 21 , role: user , len: 94
+[IPC] 完成 db:project-chat-create: 7ms
+[IPC] 调用 ai:experiment-chat-stream: {"projectId":21,"message":"文献已通过确定性解析写入项目 21（document_ids=19），复现方案已生成。请基于此与用户继续讨论，用户提出修改建议时用 update_reproduction_plan 调整...
+[AI] experimentChat 开始: { projectId: 21, msgLen: 94 }
+[ExperimentAgent] 开始执行: {
+  projectId: 21,
+  msgCount: 4,
+  lastInput: '文献已通过确定性解析写入项目 21（document_ids=19），复现方案已生成。请基于此与用户'
 }
+[Renderer:1] [Component] ChartCard 挂载, 图表: 材料/试剂用量概览 类型: bar (http://localhost:5173/src/components/repro/ChartCard.vue:76)
+[Renderer:1] [Component] ChartCard 挂载, 图表: 复现难度多维评估 类型: radar (http://localhost:5173/src/components/repro/ChartCard.vue:76)
+[ExperimentTools] get_project 开始: { name: null, project_id: 21 }
+[Summaries] searchProjectSummaries 开始: { query: 'demo', limit: 5, projectId: 21, refCount: 0 }
+[LanceDB] tableExists 开始, 表名: project_summaries
 [ExperimentAgent] 工具调用: get_project
 [LanceDB] tableExists 完成, 表名: project_summaries, 存在: true
 [Embedding] 开始向量化文本，文本长度: 4
 [Embedding] 向量化完成，维度: 384
 [LanceDB] searchVectors 开始, 表名: project_summaries, limit: 15, 向量维度: 384
-[LanceDB] searchVectors 完成, 表名: project_summaries, 结果条数: 3
-[Summaries] searchProjectSummaries 完成: { hitCount: 0 }
-[ExperimentTools] get_project 完成: { projectId: 12, resultLen: 21, summaryCount: 0 }
-[ExperimentAgent] 工具调用: parse_documents_into_project
-[Pipeline] callJson 完成: { rawLen: 24887, parsed: true, costMs: 70086 }
-[Pipeline] extractDocument 完成: {
-  materials: 0,
-  reactions: 0,
-  steps: 0,
-  instruments: 0,
-  characterizations: 0,
-  concerns: 0,
-  gaps: 0,
-  phases: 0,
-  summaryLen: 0
-}
-[ExperimentTools] parse_documents_into_project 失败: Error: 文献解析结果为空，未写入任何数据（可能是文献文本层缺失或模型抽取失败）。
-    at parseDocumentsIntoProject (F:\chemistry\AIChemistry\demo\out\main\index.js:3102:11)
-    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async tools.tool.name (F:\chemistry\AIChemistry\demo\out\main\index.js:3167:22)
-    at async F:\chemistry\AIChemistry\demo\node_modules\@langchain\core\dist\tools\index.cjs:307:22
-[ExperimentTools] search_project_knowledge 开始: { query: 'test 项目文献内容 复现方案 材料 步骤' }
-[Summaries] searchProjectSummaries 开始: { query: 'test 项目文献内容 复现方案 材料 步骤', limit: 6, projectId: null }
+[LanceDB] searchVectors 完成, 表名: project_summaries, 结果条数: 15
+[Summaries] searchProjectSummaries 完成: { hitCount: 5 }
+[ExperimentTools] get_project 完成: { projectId: 21, resultLen: 4307, summaryCount: 5 }
+[ExperimentTools] get_project 开始: { name: null, project_id: 21 }
+[Summaries] searchProjectSummaries 开始: { query: 'demo', limit: 5, projectId: 21, refCount: 0 }
 [LanceDB] tableExists 开始, 表名: project_summaries
-[ExperimentAgent] 工具调用: search_project_knowledge
+[ExperimentAgent] 工具调用: get_project
 [LanceDB] tableExists 完成, 表名: project_summaries, 存在: true
-[Embedding] 开始向量化文本，文本长度: 22
+[Embedding] 开始向量化文本，文本长度: 4
 [Embedding] 向量化完成，维度: 384
-[LanceDB] searchVectors 开始, 表名: project_summaries, limit: 18, 向量维度: 384
-[LanceDB] searchVectors 完成, 表名: project_summaries, 结果条数: 3
-[Summaries] searchProjectSummaries 完成: { hitCount: 0 }
-[ExperimentTools] search_project_knowledge 无召回
-[ExperimentAgent] 执行完成: { thinkLen: 0, msgLen: 11396, chartCount: 0 }
-[AI] experimentChat 完成: { resultLen: 13032 }
-[IPC] 完成 ai:experiment-chat-stream: 80661ms
-[IPC] 调用 db:project-context: 12
+[LanceDB] searchVectors 开始, 表名: project_summaries, limit: 15, 向量维度: 384
+[LanceDB] searchVectors 完成, 表名: project_summaries, 结果条数: 15
+[Summaries] searchProjectSummaries 完成: { hitCount: 5 }
+[ExperimentTools] get_project 完成: { projectId: 21, resultLen: 4307, summaryCount: 5 }
+[ExperimentAgent] 执行完成: { thinkLen: 0, msgLen: 1316, chartCount: 0 }
+[AI] experimentChat 完成: { resultLen: 1390 }
+[IPC] 完成 ai:experiment-chat-stream: 16693ms
+[IPC] 调用 db:project-chat-create: 21, "assistant", "
+                          ...", "[]"
+[DAO] ProjectChatDao.create, projectId: 21 , role: assistant , len: 1316
+[IPC] 完成 db:project-chat-create: 1ms
+[Renderer:1] [Store] repro refreshContext 开始, 项目ID: 21 (http://localhost:5173/src/stores/repro.ts:101)
+[IPC] 调用 db:project-context: 21
 [IPC] 完成 db:project-context: 0ms
-
-
-
-
-
-
-
-
-agent 返回的结果：
-{
-"principle": "以溴氨酸钠为原料，在铜粉催化下通过乌尔曼偶联反应合成DAS（4,4'-二氨基-1,1'-二蒽醌-3,3'-二磺酸）。反应机理为蒽醌芳环上的亲核取代，铜作为亲核试剂，溴离子为离去基团。改进工艺采用分批加入铜粉催化剂，避免催化剂失活；加入柠檬酸使铜盐转化为不溶性柠檬酸铜而除去；控制减压蒸馏后滤液剩余量至20mL以提高收率。",
-"materials": [
-{
-"name": "溴氨酸钠",
-"formula": "未给出",
-"cas": "未给出",
-"quantity": "5.0 g",
-"purity": "工业品",
-"purpose": "原料（乌尔曼偶联底物）",
-"notes": "购自山东宇虹颜料有限公司"
-},
-{
-"name": "铜粉",
-"formula": "\ce{Cu}",
-"cas": "未给出",
-"quantity": "3.0 g（预处理2.0 g，补加1.0 g）",
-"purity": "≥99.9%，粒径38 μm",
-"purpose": "催化剂",
-"notes": "使用前需预处理"
-},
-{
-"name": "柠檬酸",
-"formula": "\ce{C6H8O7}",
-"cas": "未给出",
-"quantity": "0.5 g",
-"purity": "未给出",
-"purpose": "去除反应中生成的铜盐",
-"notes": "铜粉与柠檬酸质量比为6:1"
-},
-{
-"name": "N,N-二甲基甲酰胺(DMF)",
-"formula": "\ce{C3H7NO}",
-"cas": "未给出",
-"quantity": "50 g",
-"purity": "分析纯",
-"purpose": "反应溶剂",
-"notes": "与甲醇质量比为1:2"
-},
-{
-"name": "甲醇",
-"formula": "\ce{CH3OH}",
-"cas": "未给出",
-"quantity": "100 g",
-"purity": "分析纯",
-"purpose": "反应溶剂",
-"notes": "与DMF质量比为2:1"
-},
-{
-"name": "二氯甲烷",
-"formula": "\ce{CH2Cl2}",
-"cas": "未给出",
-"quantity": "20 mL",
-"purity": "分析纯",
-"purpose": "DAS析出剂",
-"notes": "蒸馏浓缩后加入"
-},
-{
-"name": "硫酸",
-"formula": "\ce{H2SO4}",
-"cas": "未给出",
-"quantity": "3.0 g",
-"purity": "≥98%",
-"purpose": "铜粉预处理",
-"notes": "与无水乙醇配合使用"
-},
-{
-"name": "无水乙醇",
-"formula": "\ce{C2H5OH}",
-"cas": "未给出",
-"quantity": "3.0 g",
-"purity": "未给出（应为无水）",
-"purpose": "铜粉预处理",
-"notes": "预处理后倾倒上层清液"
-},
-{
-"name": "正丁醇",
-"formula": "\ce{C4H10O}",
-"cas": "未给出",
-"quantity": "配成展开剂，体积比与醋酸和水4:1:5",
-"purity": "未给出",
-"purpose": "TLC展开剂成分",
-"notes": "用于反应监控"
-},
-{
-"name": "醋酸",
-"formula": "\ce{CH3COOH}",
-"cas": "未给出",
-"quantity": "配成展开剂，体积比为正丁醇:醋酸:水=4:1:5",
-"purity": "未给出",
-"purpose": "TLC展开剂成分",
-"notes": ""
-},
-{
-"name": "水",
-"formula": "\ce{H2O}",
-"cas": "未给出",
-"quantity": "配成展开剂，体积比为正丁醇:醋酸:水=4:1:5",
-"purity": "未给出",
-"purpose": "TLC展开剂成分",
-"notes": ""
-}
-],
-"reactions": [
-{
-"equation": "未给出（文献未提供具体化学方程式）",
-"type": "主反应",
-"purpose": "溴氨酸钠经乌尔曼偶联反应生成DAS",
-"notes": "反应在铜粉催化下进行"
-}
-],
-"steps": [
-{
-"step_no": 1,
-"title": "铜粉预处理",
-"description": "向四口烧瓶中加入2.0 g铜粉、3.0 g无水乙醇、3.0 g硫酸，在40℃搅拌0.5 h，静置20 min，倾倒出上层清液，液体尽量倒净，铜粉保留。",
-"conditions": {
-"temperature": "40°C",
-"time": "0.5 h（搅拌）+20 min（静置）",
-"other": "静置后倾倒上层清液，铜粉保留"
-},
-"duration": "约50 min",
-"notes": ""
-},
-{
-"step_no": 2,
-"title": "乌尔曼偶联反应合成DAS",
-"description": "向装有预处理后铜粉的四口烧瓶中加入5.0 g溴氨酸钠、50 g DMF、100 g甲醇，于55℃保温反应44.5 h；然后加入1.0 g铜粉（即补加与原料质量比1:5的铜粉），继续保温反应0.51 h；最后加入0.5 g柠檬酸，继续反应0.5 h。反应过程中用TLC监测反应进程。",
-"conditions": {
-"temperature": "55°C",
-"time": "总反应时间约56 h（44.5 h + 0.51 h + 0.5 h）",
-"other": "分批加入铜粉，先加与原料质量比2:5的铜粉，后补加1:5"
-},
-"duration": "56 h",
-"notes": "反应温度55℃，铜粉和柠檬酸分批加入"
-},
-{
-"step_no": 3,
-"title": "趁热过滤",
-"description": "反应结束后，趁热过滤，去除铜粉及不溶性铜盐（柠檬酸铜），收集滤液。",
-"conditions": {
-"temperature": "趁热（未给出具体温度，约为反应温度55℃）"
-},
-"duration": "未给出",
-"notes": "过滤除去固体杂质"
-},
-{
-"step_no": 4,
-"title": "减压蒸馏浓缩滤液",
-"description": "将所得滤液在140℃减压蒸馏，浓缩至剩余量约20 mL。蒸馏出的溶剂为甲醇和DMF混合物，可循环使用。",
-"conditions": {
-"temperature": "140°C",
-"pressure": "减压（真空度未给出）",
-"other": "滤液剩余量控制在20 mL为宜"
-},
-"duration": "未给出",
-"notes": "蒸馏后滤液剩余量影响收率"
-},
-{
-"step_no": 5,
-"title": "二氯甲烷析出产品",
-"description": "向蒸馏浓缩后的溶液中加入20 mL二氯甲烷，搅拌2 h，过滤，得到目标产品DAS。",
-"conditions": {
-"time": "2 h",
-"stirring": "搅拌（转速未给出）",
-"other": "加入二氯甲烷后搅拌2 h"
-},
-"duration": "2 h",
-"notes": "过滤后得到DAS固体"
-},
-{
-"step_no": 6,
-"title": "干燥",
-"description": "将过滤得到的DAS产品放于65℃烘箱中烘干6 h。",
-"conditions": {
-"temperature": "65°C",
-"time": "6 h"
-},
-"duration": "6 h",
-"notes": "烘干得到最终产品"
-}
-],
-"instruments": [
-{
-"name": "四口烧瓶",
-"specification": "容量未给出",
-"purpose": "用于铜粉预处理和DAS合成反应",
-"notes": ""
-},
-{
-"name": "恒温加热装置",
-"specification": "未给出",
-"purpose": "提供恒温反应条件（如40℃、55℃、65℃）",
-"notes": "文献未明确具体型号"
-},
-{
-"name": "减压蒸馏装置",
-"specification": "未给出",
-"purpose": "对滤液进行减压蒸馏浓缩",
-"notes": "温度140℃，真空度未给出"
-},
-{
-"name": "过滤装置",
-"specification": "未给出",
-"purpose": "趁热过滤及产品过滤",
-"notes": ""
-},
-{
-"name": "烘箱",
-"specification": "未给出",
-"purpose": "干燥DAS产品",
-"notes": "设定65℃"
-},
-{
-"name": "高效液相色谱仪(HPLC)",
-"specification": "LC-15C型，ZORBAX SB-C18柱（Φ4.6×250 mm）",
-"purpose": "分析DAS含量和纯度",
-"notes": "用于产品分析"
-},
-{
-"name": "等离子体发射光谱仪(ICP)",
-"specification": "PerkinElmer Optima 8000型",
-"purpose": "测定DAS中铜含量",
-"notes": "用于杂质分析"
-},
-{
-"name": "傅里叶变换红外光谱仪(FT-IR)",
-"specification": "Nicolet iS5型",
-"purpose": "表征DAS和PR177的结构",
-"notes": "用于产品表征"
-},
-{
-"name": "薄层色谱（TLC）",
-"specification": "硅胶板（25 mm×75 mm），玻璃毛细管（内径0.3 mm）",
-"purpose": "监测反应进程",
-"notes": "展开剂为正丁醇:醋酸:水=4:1:5"
-}
-],
-"characterizations": [
-{
-"target": "产物DAS",
-"method": "HPLC",
-"conditions": "流动相：V(甲醇):V(水)=50:50；进样量10 μL；流速0.5 mL/min；柱温25℃；检测波长290 nm；定量方法为面积归一法",
-"expected": "DAS纯度>96%（当铜盐去除完全时）",
-"notes": "样品用流动相溶解并稀释"
-},
-{
-"target": "产物DAS",
-"method": "ICP",
-"conditions": "样品用体积比1:1的盐酸(0.07 mol/L)和硝酸(0.02 mol/L)混合液处理，然后进样测定",
-"expected": "铜含量<0.001%（当柠檬酸添加量足够时）",
-"notes": "用于测定残余铜盐含量"
-},
-{
-"target": "产物DAS",
-"method": "FT-IR",
-"conditions": "KBr压片法（文献未明确，但为常规方法）",
-"expected": "3312、3457
-c
-m
-−
-1
-cm
-−1
- 为N-H伸缩振动；557、623、1050、1259
-c
-m
-−
-1
-cm
-−1
- 为磺酸基特征吸收；1629、1659
-c
-m
-−
-1
-cm
-−1
- 为蒽醌特征吸收；807、892
-c
-m
-−
-1
-cm
-−1
- 为苯环三取代吸收",
-"notes": "与DAS结构一致"
-},
-{
-"target": "最终产物PR177",
-"method": "FT-IR",
-"conditions": "由DAS脱磺酸基制得后测定",
-"expected": "32003500
-c
-m
-−
-1
-cm
-−1
- 有双峰（3404、3275
-c
-m
-−
-1
-cm
-−1
- ，N-H伸缩）；1593、1637
-c
-m
-−
-1
-cm
-−1
- 为蒽醌C=O特征吸收；无磺酸基特征吸收",
-"notes": "证明DAS已脱磺酸基"
-},
-{
-"target": "反应过程",
-"method": "TLC",
-"conditions": "展开剂V(正丁醇):V(醋酸):V(水)=4:1:5，硅胶板，毛细管点样",
-"expected": "监测溴氨酸钠原料点消失，DAS点出现",
-"notes": "每0.5 h取样监测"
-}
-],
-"concerns": [
-{
-"category": "safety",
-"content": "硫酸具有强腐蚀性，操作时需佩戴防护手套和护目镜。",
-"risk_level": "高",
-"solution": "在通风橱中操作，避免皮肤接触，使用耐酸容器。"
-},
-{
-"category": "safety",
-"content": "二氯甲烷有毒且有挥发性，吸入有害。",
-"risk_level": "中",
-"solution": "在通风橱中操作，佩戴有机蒸气防护口罩。"
-},
-{
-"category": "safety",
-"content": "减压蒸馏在140℃进行，溶剂为甲醇和DMF，可能产生易燃蒸气。",
-"risk_level": "中",
-"solution": "确保蒸馏装置密封良好，控制加热温度，避免明火。"
-},
-{
-"category": "operation",
-"content": "铜粉预处理后需将上层清液尽量倒净，否则残留液体影响后续反应。",
-"risk_level": "低",
-"solution": "仔细倾倒，可稍倾斜静置后倒出。"
-},
-{
-"category": "operation",
-"content": "过滤时应趁热进行，防止产物析出堵塞滤纸。",
-"risk_level": "中",
-"solution": "提前预热过滤装置，快速操作。"
-},
-{
-"category": "waste",
-"content": "滤液蒸馏出的溶剂（甲醇/DMF）可循环使用，减少废液。",
-"risk_level": "低",
-"solution": "收集溶剂，补加DMF后循环套用。"
-},
-{
-"category": "other",
-"content": "柠檬酸铜微溶于水，几乎不溶于醇类和DMF，过滤时可能形成细颗粒。",
-"risk_level": "低",
-"solution": "采用致密滤纸或抽滤，以提高过滤效率。"
-}
-],
-"gaps": [
-{
-"category": "material",
-"content": "溴氨酸钠和DAS的化学式及CAS号未提供。",
-"impact": "影响反应方程式的准确书写和原料纯度核对。",
-"assumption": "根据常识，溴氨酸钠可能为C14H7BrNNaO5S，DAS可能为C28H18N2O8S2（假设）"
-},
-{
-"category": "condition",
-"content": "搅拌速度未给出，可能影响反应均一性。",
-"impact": "搅拌速度不足可能导致局部浓度不均，影响反应速率。",
-"assumption": "建议使用机械搅拌或磁力搅拌，转速300-500 rpm（假设）"
-},
-{
-"category": "condition",
-"content": "减压蒸馏的真空度未给出，影响蒸馏温度的实际值。",
-"impact": "不同真空度下140℃对应的压力不同，可能影响蒸馏效率。",
-"assumption": "通常减压蒸馏采用-0.09 MPa左右（假设）"
-},
-{
-"category": "procedure",
-"content": "过滤方式（常压过滤/减压抽滤）未明确。",
-"impact": "影响过滤速度和产物分离效果。",
-"assumption": "趁热过滤可用布氏漏斗抽滤（假设）"
-},
-{
-"category": "procedure",
-"content": "反应气氛（是否通N2或惰性气体）未说明。",
-"impact": "空气可能氧化铜粉，影响催化活性。",
-"assumption": "建议在氮气保护下反应（假设）"
-},
-{
-"category": "instrument",
-"content": "四口烧瓶的容积、加热方式（油浴/水浴）未给出。",
-"impact": "影响传热和操作便利性。",
-"assumption": "建议使用250 mL四口烧瓶，油浴加热（假设）"
-},
-{
-"category": "characterization",
-"content": "HPLC分析中DAS的保留时间或标准品信息未给出。",
-"impact": "无法直接判定HPLC图谱中的DAS峰。",
-"assumption": "可通过标准品对照或MS确认（假设）"
-}
-],
-"assessment": {
-"difficulty_score": 60,
-"feasibility": "可行",
-"analysis": "该实验步骤清晰，原材料易得，但涉及减压蒸馏、有毒溶剂和腐蚀性硫酸，需要一定的化学实验基础。分批加料和柠檬酸处理条件明确，操作可行性较高。主要难点在于蒸馏剩余量的控制和铜盐去除效果，需严格按文献条件执行。",
-"risk_points": [
-"减压蒸馏时溶剂蒸汽泄漏可能引发火灾",
-"硫酸处理铜粉时若操作不当可能溅出腐蚀",
-"二氯甲烷有毒，通风不良可导致中毒",
-"柠檬酸添加不足导致铜含量超标，影响纯度"
-]
-},
-"phases": [
-{
-"name": "阶段1：铜粉预处理",
-"expected": "得到表面清洁的活性铜粉，去除表面氧化物和有机污染物。",
-"metrics": [
-{
-"name": "铜粉回收率",
-"target": "约100%",
-"range": "实际损耗极小",
-"unit": "%",
-"method": "称量"
-}
-]
-},
-{
-"name": "阶段2：乌尔曼偶联反应合成DAS",
-"expected": "溴氨酸钠完全转化，生成DAS。反应时间控制在55.5 h（分批加铜粉后），TLC监测原料点消失。",
-"metrics": [
-{
-"name": "反应时间",
-"target": "5.5 h",
-"range": "5.05.5 h",
-"unit": "h",
-"method": "TLC监测"
-},
-{
-"name": "DAS纯度",
-"target": ">96%",
-"range": "95%以上",
-"unit": "%",
-"method": "HPLC面积归一法"
-}
-]
-},
-{
-"name": "阶段3：后处理（过滤、蒸馏、析出、干燥）",
-"expected": "得到DAS固体产品，收率>95%（滤液剩余量20 mL时），铜含量<0.001%（柠檬酸用量0.5 g）。",
-"metrics": [
-{
-"name": "DAS收率",
-"target": ">95%",
-"range": "95%以上",
-"unit": "%",
-"method": "称量计算"
-},
-{
-"name": "铜含量",
-"target": "<0.001%",
-"range": "小于0.001%",
-"unit": "%",
-"method": "ICP测定"
-}
-]
-}
-],
-"summary": "本文改进DAS合成工艺：铜粉预处理后，在55℃以质量比2:5先加铜粉反应4~4.5h，补加1:5铜粉继续反应0.5~1h，再加入柠檬酸0.5g反应0.5h。趁热过滤，140℃减压蒸馏至剩余20mL，加二氯甲烷20mL搅拌2h，过滤65℃干燥6h得DAS，收率>95%，纯度>96%，铜含量<0.001%。分批加铜粉节省23h，溶剂可循环套用。"
-}
+[Renderer:1] [Store] repro refreshContext 完成: 材料13 步骤9 阶段3 记录0 预测0 论文0 (http://localhost:5173/src/stores/repro.ts:103)
+[Renderer:1] [Store] repro sendMessage 完成, 当前消息数: 5 (http://localhost:5173/src/stores/repro.ts:222)
+[Renderer:1] [View] 确认复现方案并进入阶段与记录, 项目ID: 21 (http://localhost:5173/src/views/ReproductionLab.vue:122)
+[Renderer:1] [Store] repro confirmPlan, 项目ID: 21 (http://localhost:5173/src/stores/repro.ts:161)
+[Renderer:1] [Component] PhasePanel 挂载 (http://localhost:5173/src/components/repro/PhasePanel.vue:18)
+[IPC] 调用 db:project-update: 21, {"resume_state":"{\"activeTab\":\"figure\",\"updatedAt\":\"2026-08-05T13:24:20.375Z\"}"}
+[DAO] ProjectDao.update, id: 21 , patch: {"resume_state":"{\"activeTab\":\"figure\",\"updatedAt\":\"2026-08-05T13:24:20.375Z\"}"}
+[DAO] ProjectDao.update 完成, id: 21
+[IPC] 完成 db:project-update: 1ms
+[Renderer:1] [Component] FigurePanel 加载图表, 项目ID: 21 (http://localhost:5173/src/components/repro/FigurePanel.vue:21)
+[IPC] 调用 db:figure-list-by-project: 21
+[IPC] 完成 db:figure-list-by-project: 1ms
+[Renderer:1] [Component] FigurePanel 挂载 (http://localhost:5173/src/components/repro/FigurePanel.vue:14)
+[Renderer:1] [Component] FigurePanel 图表加载完成, 数量: 0 (http://localhost:5173/src/components/repro/FigurePanel.vue:23)
+[IPC] 调用 db:project-update: 21, {"resume_state":"{\"activeTab\":\"phase\",\"updatedAt\":\"2026-08-05T13:24:27.922Z\"}"}
+[DAO] ProjectDao.update, id: 21 , patch: {"resume_state":"{\"activeTab\":\"phase\",\"updatedAt\":\"2026-08-05T13:24:27.922Z\"}"}
+[DAO] ProjectDao.update 完成, id: 21
+[IPC] 完成 db:project-update: 0ms
+[Renderer:1] [Component] PhasePanel 挂载 (http://localhost:5173/src/components/repro/PhasePanel.vue:18)
+[IPC] 调用 db:project-update: 21, {"resume_state":"{\"activeTab\":\"plan\",\"updatedAt\":\"2026-08-05T13:24:29.429Z\"}"}
+[DAO] ProjectDao.update, id: 21 , patch: {"resume_state":"{\"activeTab\":\"plan\",\"updatedAt\":\"2026-08-05T13:24:29.429Z\"}"}
+[DAO] ProjectDao.update 完成, id: 21
+[IPC] 完成 db:project-update: 1ms
+[Renderer:1] [Component] PlanPanel 挂载 (http://localhost:5173/src/components/repro/PlanPanel.vue:14)
+[IPC] 调用 db:project-update: 21, {"resume_state":"{\"activeTab\":\"phase\",\"updatedAt\":\"2026-08-05T13:24:40.170Z\"}"}
+[DAO] ProjectDao.update, id: 21 , patch: {"resume_state":"{\"activeTab\":\"phase\",\"updatedAt\":\"2026-08-05T13:24:40.170Z\"}"}
+[DAO] ProjectDao.update 完成, id: 21
+[IPC] 完成 db:project-update: 1ms
+[Renderer:1] [Component] PhasePanel 挂载 (http://localhost:5173/src/components/repro/PhasePanel.vue:18)
+[IPC] 调用 db:project-update: 21, {"resume_state":"{\"activeTab\":\"figure\",\"updatedAt\":\"2026-08-05T13:24:40.865Z\"}"}
+[DAO] ProjectDao.update, id: 21 , patch: {"resume_state":"{\"activeTab\":\"figure\",\"updatedAt\":\"2026-08-05T13:24:40.865Z\"}"}
+[DAO] ProjectDao.update 完成, id: 21
+[IPC] 完成 db:project-update: 1ms
+[Renderer:1] [Component] FigurePanel 加载图表, 项目ID: 21 (http://localhost:5173/src/components/repro/FigurePanel.vue:21)
+[IPC] 调用 db:figure-list-by-project: 21
+[IPC] 完成 db:figure-list-by-project: 0ms
+[Renderer:1] [Component] FigurePanel 挂载 (http://localhost:5173/src/components/repro/FigurePanel.vue:14)
+[Renderer:1] [Component] FigurePanel 图表加载完成, 数量: 0 (http://localhost:5173/src/components/repro/FigurePanel.vue:23)
+[IPC] 调用 db:project-update: 21, {"resume_state":"{\"activeTab\":\"paper\",\"updatedAt\":\"2026-08-05T13:24:41.520Z\"}"}
+[DAO] ProjectDao.update, id: 21 , patch: {"resume_state":"{\"activeTab\":\"paper\",\"updatedAt\":\"2026-08-05T13:24:41.520Z\"}"}
+[DAO] ProjectDao.update 完成, id: 21
+[IPC] 完成 db:project-update: 1ms
+[Renderer:1] [Component] PaperPanel 挂载 (http://localhost:5173/src/components/repro/PaperPanel.vue:15)
+[IPC] 调用 db:project-update: 21, {"resume_state":"{\"activeTab\":\"figure\",\"updatedAt\":\"2026-08-05T13:24:42.226Z\"}"}
+[DAO] ProjectDao.update, id: 21 , patch: {"resume_state":"{\"activeTab\":\"figure\",\"updatedAt\":\"2026-08-05T13:24:42.226Z\"}"}
+[DAO] ProjectDao.update 完成, id: 21
+[IPC] 完成 db:project-update: 1ms
+[Renderer:1] [Component] FigurePanel 加载图表, 项目ID: 21 (http://localhost:5173/src/components/repro/FigurePanel.vue:21)
+[IPC] 调用 db:figure-list-by-project: 21
+[IPC] 完成 db:figure-list-by-project: 0ms
+[Renderer:1] [Component] FigurePanel 挂载 (http://localhost:5173/src/components/repro/FigurePanel.vue:14)
+[Renderer:1] [Component] FigurePanel 图表加载完成, 数量: 0 (http://localhost:5173/src/components/repro/FigurePanel.vue:23)
+[IPC] 调用 db:project-update: 21, {"resume_state":"{\"activeTab\":\"paper\",\"updatedAt\":\"2026-08-05T13:24:42.708Z\"}"}
+[DAO] ProjectDao.update, id: 21 , patch: {"resume_state":"{\"activeTab\":\"paper\",\"updatedAt\":\"2026-08-05T13:24:42.708Z\"}"}
+[DAO] ProjectDao.update 完成, id: 21
+[IPC] 完成 db:project-update: 0ms
+[Renderer:1] [Component] PaperPanel 挂载 (http://localhost:5173/src/components/repro/PaperPanel.vue:15)
+[IPC] 调用 db:project-update: 21, {"resume_state":"{\"activeTab\":\"reference\",\"updatedAt\":\"2026-08-05T13:24:43.079Z\"}"}
+[DAO] ProjectDao.update, id: 21 , patch: {"resume_state":"{\"activeTab\":\"reference\",\"updatedAt\":\"2026-08-05T13:24:43.079Z\"}"}
+[DAO] ProjectDao.update 完成, id: 21
+[IPC] 完成 db:project-update: 0ms
+[IPC] 调用 db:link-list: 21
+[IPC] 完成 db:link-list: 0ms
+[IPC] 调用 db:link-request-list: 21, false
+[IPC] 完成 db:link-request-list: 1ms
+[IPC] 调用 db:link-request-list: 21, true
+[IPC] 完成 db:link-request-list: 0ms
+[IPC] 调用 db:project-update: 21, {"resume_state":"{\"activeTab\":\"phase\",\"updatedAt\":\"2026-08-05T13:24:43.781Z\"}"}
+[DAO] ProjectDao.update, id: 21 , patch: {"resume_state":"{\"activeTab\":\"phase\",\"updatedAt\":\"2026-08-05T13:24:43.781Z\"}"}
+[DAO] ProjectDao.update 完成, id: 21
+[IPC] 完成 db:project-update: 1ms
+[Renderer:1] [Component] PhasePanel 挂载 (http://localhost:5173/src/components/repro/PhasePanel.vue:18)
+[IPC] 调用 window:open-step-detail: 21, 97
+[Window] window:open-step-detail: { projectId: 21, stepId: 97 }
+[Window] 步骤详情窗口创建, projectId: 21 , stepId: 97
+[IPC] 完成 window:open-step-detail: 24ms
+[IPC] 调用 window:step-detail-claim:
+[IPC] 完成 window:step-detail-claim: 0ms
+[IPC] 调用 db:project-context: 21
+[IPC] 完成 db:project-context: 1ms
+[IPC] 调用 db:figure-list-by-project: 21
+[IPC] 完成 db:figure-list-by-project: 1ms
+[IPC] 调用 window:open-step-detail: 21, 98
+[Window] window:open-step-detail: { projectId: 21, stepId: 98 }
+[IPC] 完成 window:open-step-detail: 2ms
+[IPC] 调用 window:open-step-detail: 21, 99
+[Window] window:open-step-detail: { projectId: 21, stepId: 99 }
+[IPC] 完成 window:open-step-detail: 3ms
+[IPC] 调用 window:open-step-detail: 21, 100
+[Window] window:open-step-detail: { projectId: 21, stepId: 100 }
+[IPC] 完成 window:open-step-detail: 3ms
+[IPC] 调用 window:open-step-detail: 21, 101
+[Window] window:open-step-detail: { projectId: 21, stepId: 101 }
+[IPC] 完成 window:open-step-detail: 3ms
+[IPC] 调用 window:open-step-detail: 21, 102
+[Window] window:open-step-detail: { projectId: 21, stepId: 102 }
+[IPC] 完成 window:open-step-detail: 3ms
+[IPC] 调用 db:project-update: 21, {"resume_state":"{\"activeTab\":\"plan\",\"updatedAt\":\"2026-08-05T13:25:21.230Z\"}"}
+[DAO] ProjectDao.update, id: 21 , patch: {"resume_state":"{\"activeTab\":\"plan\",\"updatedAt\":\"2026-08-05T13:25:21.230Z\"}"}
+[DAO] ProjectDao.update 完成, id: 21
+[IPC] 完成 db:project-update: 0ms
+[Renderer:1] [Component] PlanPanel 挂载 (http://localhost:5173/src/components/repro/PlanPanel.vue:14)
