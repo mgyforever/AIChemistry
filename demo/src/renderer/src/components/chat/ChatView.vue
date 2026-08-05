@@ -55,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import MessageBubble from './MessageBubble.vue'
 
 interface Message {
@@ -85,4 +85,8 @@ watch(
   () => props.messages.length + props.streamingText.length,
   () => scrollToBottom()
 )
+
+onMounted(() => {
+  console.log('[Component] ChatView 挂载, 初始消息数:', props.messages.length)
+})
 </script>

@@ -24,20 +24,25 @@ export const ConversationDao = {
   },
 
   create(title: string, token: string): { id: number } {
+    console.log('[DAO] ConversationDao.create, title:', title)
     const db = getSQLite()
     const stmt = db.prepare('INSERT INTO conversations (token, title) VALUES (?, ?)')
     const result = stmt.run(token, title)
+    console.log('[DAO] ConversationDao.create 完成, id:', result.lastInsertRowid)
     return { id: result.lastInsertRowid as number }
   },
 
   update(id: number, title: string): void {
+    console.log('[DAO] ConversationDao.update, id:', id, ', title:', title)
     const db = getSQLite()
     db.prepare(
       "UPDATE conversations SET title = ?, updated_at = datetime('now', 'localtime') WHERE id = ?"
     ).run(title, id)
+    console.log('[DAO] ConversationDao.update 完成, id:', id)
   },
 
   delete(id: number): void {
+    console.log('[DAO] ConversationDao.delete, id:', id)
     const db = getSQLite()
     db.prepare('DELETE FROM conversations WHERE id = ?').run(id)
   }

@@ -117,11 +117,13 @@ function submit(): void {
     error.value = '请填写实验名称'
     return
   }
+  console.log('[Component] CreateExperimentModal 提交创建实验:', form.name.slice(0, 50))
   const tags = tagsText.value
     .split(/[,，]/)
     .map((t) => t.trim())
     .filter(Boolean)
   const exp = experimentStore.createExperiment({ ...form, tags })
+  console.log('[Component] CreateExperimentModal 实验创建完成:', exp.id)
   emit('created', exp)
 }
 </script>

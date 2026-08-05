@@ -34,6 +34,7 @@ function parseAiReply(reply: string): { think: string; messages: string } {
     }
   } catch {
     // 非 JSON 格式，整体作为 messages
+    console.warn('[Store] AI 回复非 JSON 格式，整体作为纯文本处理')
   }
   return { think: '', messages: reply }
 }
@@ -49,6 +50,7 @@ export const chatStore = reactive({
   _pseudoStreamTimer: null as ReturnType<typeof setInterval> | null,
 
   async loadConversations(): Promise<void> {
+    console.log('[Store] loadConversations 开始')
     const token = getToken()
     const list = await api.db.conversation.list(token)
     this.conversations = list as Conversation[]
@@ -58,9 +60,11 @@ export const chatStore = reactive({
     this.messages = []
     this.streamingText = ''
     this.streamingThink = ''
+    console.log('[Store] loadConversations 完成, 会话数:', this.conversations.length)
   },
 
   async selectConversation(id: number): Promise<void> {
+    console.log('[Store] selectConversation 开始, 会话ID:', id)
     this._clearPseudoStream()
     this.currentConversationId = id
     this.streamingText = ''
@@ -68,18 +72,22 @@ export const chatStore = reactive({
     this.isLoading = false
     const msgs = await api.db.message.list(id)
     this.messages = msgs as Message[]
+    console.log('[Store] selectConversation 完成, 消息数:', this.messages.length)
   },
 
   async createConversation(title?: string): Promise<Conversation> {
+    console.log('[Store] createConversation 开始, 标题:', (title || '新对话').slice(0, 50))
     const token = getToken()
     const { id } = await api.db.conversation.create(title || '新对话', token)
     const conv = (await api.db.conversation.get(id)) as Conversation
     this.conversations.unshift(conv)
     await this.selectConversation(id)
+    console.log('[Store] createConversation 完成, 会话ID:', conv.id)
     return conv
   },
 
   async deleteConversation(id: number): Promise<void> {
+    console.log('[Store] deleteConversation 开始, 会话ID:', id)
     await api.db.conversation.delete(id)
     this.conversations = this.conversations.filter((c) => c.id !== id)
     if (this.currentConversationId === id) {
@@ -88,6 +96,7 @@ export const chatStore = reactive({
       this.streamingText = ''
       this.streamingThink = ''
     }
+    console.log('[Store] deleteConversation 完成, 剩余会话数:', this.conversations.length)
   },
 
   async sendMessage(content: string): Promise<void> {
@@ -122,6 +131,7 @@ export const chatStore = reactive({
           }
         } catch {
           // 不是 JSON 则原样使用
+          console.warn('[Store] assistant 消息非 JSON 包裹，原样作为历史')
         }
       }
       return { role: m.role, content }

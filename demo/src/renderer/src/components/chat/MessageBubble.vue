@@ -243,6 +243,7 @@ function toggleThinking(): void {
 const bubbleRef = ref<HTMLElement | null>(null)
 
 onMounted(() => {
+  console.log('[Component] MessageBubble 挂载, role:', props.role, '内容长度:', props.content.length)
   gsap.fromTo(
     bubbleRef.value,
     { opacity: 0, y: 16, scale: 0.95 },

@@ -3,6 +3,12 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
+console.log('[Model] 初始化模型配置:', {
+  model: process.env.MODEL,
+  baseURL: 'https://api.deepseek.com',
+  hasApiKey: Boolean(process.env.DEEPSEEK_API_KEY)
+})
+
 export const model = new ChatOpenAI({
   model: process.env.MODEL,
   temperature: 0,

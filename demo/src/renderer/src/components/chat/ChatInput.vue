@@ -68,12 +68,14 @@ function handleKeydown(e: KeyboardEvent): void {
 function handleSend(): void {
   const content = text.value.trim()
   if (!content || props.disabled) return
+  console.log('[Component] ChatInput 发送消息:', content.slice(0, 50))
   emit('send', content)
   text.value = ''
   nextTick(() => autoResize())
 }
 
 onMounted(() => {
+  console.log('[Component] ChatInput 挂载')
   if (containerRef.value) {
     gsap.fromTo(
       containerRef.value,

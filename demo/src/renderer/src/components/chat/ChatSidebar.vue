@@ -118,5 +118,8 @@ function animateList(): void {
 }
 
 watch(() => props.conversations.length, animateList)
-onMounted(animateList)
+onMounted(() => {
+  console.log('[Component] ChatSidebar 挂载, 会话数:', props.conversations.length)
+  animateList()
+})
 </script>

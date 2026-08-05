@@ -246,6 +246,7 @@ const error = ref('')
 let mm: gsap.MatchMedia | null = null
 
 onMounted(() => {
+  console.log('[View] Login 挂载')
   if (!rootRef.value) return
 
   mm = gsap.matchMedia()
@@ -314,6 +315,7 @@ function validatePassword(pwd: string): string {
 }
 
 async function handleLogin(): Promise<void> {
+  console.log('[View] 登录提交, 用户名:', username.value.trim())
   const usernameError = validateUsername(username.value.trim())
   const passwordError = validatePassword(password.value)
   if (usernameError || passwordError) {
@@ -349,6 +351,7 @@ async function handleLogin(): Promise<void> {
     }
 
     // 登录成功，进入主界面
+    console.log('[View] 登录成功，跳转 /chat')
     router.push('/chat')
   } catch (err) {
     console.error('登录失败:', err)

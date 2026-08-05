@@ -4,9 +4,11 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { initDatabases } from './database'
 import { registerAiHandlers } from './ai-server'
+import { registerFileHandlers } from './files'
 
 function createWindow(): void {
   // Create the browser window.
+  console.log('[App] 创建主窗口')
   const mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
@@ -41,8 +43,10 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
+  console.log('[App] 应用就绪, 开始初始化数据库')
   // Initialize databases (SQLite + LanceDB)
   await initDatabases()
+  console.log('[App] 数据库初始化完成')
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -55,12 +59,18 @@ app.whenReady().then(async () => {
 
   // Register AI chat IPC handlers
   registerAiHandlers()
+  console.log('[App] AI IPC 处理器注册完成')
+  // Register file import IPC handlers
+  registerFileHandlers()
+  console.log('[App] 文件 IPC 处理器注册完成')
 
   createWindow()
+  console.log('[App] 主窗口创建完成')
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
+    console.log('[App] activate 事件触发')
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
@@ -69,7 +79,9 @@ app.whenReady().then(async () => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
+  console.log('[App] 所有窗口已关闭')
   if (process.platform !== 'darwin') {
+    console.log('[App] 退出应用')
     app.quit()
   }
 })

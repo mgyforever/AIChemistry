@@ -500,6 +500,7 @@ function loadState(): { experiments: Experiment[]; initialized: boolean } {
     }
   } catch {
     /* 数据损坏时回退到种子数据 */
+    console.warn('[Store] 实验本地数据损坏，回退到种子数据')
   }
   return { experiments: seedExperiments(), initialized: false }
 }
@@ -517,6 +518,7 @@ export const experimentStore = reactive({
 
   /** 重置为种子示例数据（演示用） */
   resetDemo(): void {
+    console.log('[Store] 重置实验为种子示例数据')
     this.experiments = seedExperiments()
     this.persist()
   },
@@ -552,6 +554,7 @@ export const experimentStore = reactive({
     color: string
     estimatedMinutes: number
   }): Experiment {
+    console.log('[Store] createExperiment 开始, 名称:', data.name.slice(0, 50))
     const exp: Experiment = {
       id: uid(),
       name: data.name,
@@ -579,6 +582,7 @@ export const experimentStore = reactive({
     }
     this.experiments.unshift(exp)
     this.persist()
+    console.log('[Store] createExperiment 完成, 实验ID:', exp.id)
     return exp
   },
 
@@ -590,8 +594,10 @@ export const experimentStore = reactive({
   },
 
   deleteExperiment(id: string): void {
+    console.log('[Store] deleteExperiment 开始, 实验ID:', id)
     this.experiments = this.experiments.filter((e) => e.id !== id)
     this.persist()
+    console.log('[Store] deleteExperiment 完成, 剩余实验数:', this.experiments.length)
   },
 
   setStatus(id: string, status: ExpStatus): void {

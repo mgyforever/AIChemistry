@@ -565,6 +565,7 @@ function selectStage(id: string): void {
 
 function addStage(): void {
   if (!exp.value) return
+  console.log('[View] 添加阶段, 实验ID:', exp.value.id)
   const stage = experimentStore.addStage(exp.value.id)
   selectedStageId.value = stage.id
   typeMenuOpen.value = false
@@ -623,6 +624,7 @@ function dropEvent(i: number): void {
 
 function addEventOfType(type: EventType): void {
   if (!exp.value || !selectedStage.value) return
+  console.log('[View] 添加事件, 类型:', EVENT_TYPES[type].label, '阶段:', selectedStage.value.name)
   const ev = experimentStore.addEvent(exp.value.id, selectedStage.value.id, type)
   typeMenuOpen.value = false
   expandedEvents.value = new Set(expandedEvents.value).add(ev.id)
@@ -632,6 +634,7 @@ function addEventOfType(type: EventType): void {
 function toggleDone(ev: EventItem, e: MouseEvent): void {
   if (!exp.value || !selectedStage.value) return
   experimentStore.toggleEvent(exp.value.id, selectedStage.value.id, ev.id)
+  console.log('[View] 事件状态切换:', ev.title, '→', !ev.done ? '完成' : '未完成')
 
   // 勾选反馈动画（尊重减少动效偏好）
   if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -683,6 +686,7 @@ function createGroup(): void {
     notify('请填写小组名称')
     return
   }
+  console.log('[View] 创建小组:', newGroupName.value.trim())
   experimentStore.addGroup(exp.value.id, newGroupName.value.trim(), newGroupDesc.value.trim())
   newGroupName.value = ''
   newGroupDesc.value = ''
@@ -722,9 +726,11 @@ function animateEvents(): void {
 
 onMounted(() => {
   if (!exp.value) {
+    console.warn('[View] ExperimentBuilder 未找到实验, 实验ID:', expId.value, '，跳回 /lab')
     router.replace('/lab')
     return
   }
+  console.log('[View] ExperimentBuilder 挂载, 实验ID:', exp.value.id, '阶段数:', exp.value.stages.length)
   selectedStageId.value = exp.value.stages[0]?.id ?? ''
   requestAnimationFrame(() => {
     if (!rootRef.value) return

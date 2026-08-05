@@ -4,6 +4,12 @@ import type { BaseMessage } from "@langchain/core/messages";
 import { Prompt } from "./prompt";
 import { searchTool } from "./tools/web-tools";
 import { searchSimilarTool } from "./tools/crs-tools";
+import {
+  queryScientificGraphTool,
+  kgStatisticsTool,
+  kgNodeLabelsTool,
+  kgRelationshipTypesTool,
+} from "./tools/scigraph-tools";
 import { createAgent } from "langchain";
 
 const prompt = new Prompt("");
@@ -40,16 +46,25 @@ function parseModelOutput(raw: string): { think: string; messages: string } {
  * 发送消息列表给 AI 模型，返回完整响应（无搜索能力）
  */
 export async function chatStream(messages: BaseMessage[]): Promise<string> {
-  const stream = await model.stream(withSystem(messages));
+  console.log("[Agent] chatStream 开始:", { msgCount: messages.length });
 
-  let fullContent = "";
-  for await (const chunk of stream) {
-    fullContent += chunk.content as string;
+  try {
+    const stream = await model.stream(withSystem(messages));
+
+    let fullContent = "";
+    for await (const chunk of stream) {
+      fullContent += chunk.content as string;
+    }
+
+    // 解析模型 JSON 输出
+    const { think, messages: msg } = parseModelOutput(fullContent);
+    const result = JSON.stringify({ think, messages: msg });
+    console.log("[Agent] chatStream 完成:", { outputLen: result.length });
+    return result;
+  } catch (err) {
+    console.error("[Agent] chatStream 异常:", err);
+    throw err;
   }
-
-  // 解析模型 JSON 输出
-  const { think, messages: msg } = parseModelOutput(fullContent);
-  return JSON.stringify({ think, messages: msg });
 }
 
 // ==================== LangChain 标准 Agent 框架 ====================
@@ -60,7 +75,14 @@ export async function chatStream(messages: BaseMessage[]): Promise<string> {
  */
 const agent = createAgent({
   model,
-  tools: [searchTool, searchSimilarTool],
+  tools: [
+    searchTool,
+    searchSimilarTool,
+    queryScientificGraphTool,
+    kgStatisticsTool,
+    kgNodeLabelsTool,
+    kgRelationshipTypesTool,
+  ],
   systemPrompt: prompt.AIChatSystemPrompt,
 });
 
@@ -136,6 +158,13 @@ export async function chatStreamWithSearch(
             console.log("[Agent] 工具调用开始: web_search");
           } else if (call.name === "search_similar_compounds") {
             console.log("[Agent] 工具调用开始: search_similar_compounds");
+          } else if (
+            call.name === "query_scientific_graph" ||
+            call.name === "get_kg_statistics" ||
+            call.name === "get_kg_node_labels" ||
+            call.name === "get_kg_relationship_types"
+          ) {
+            console.log("[Agent] 工具调用开始: " + call.name);
           }
           // 等待工具执行完成
           try {

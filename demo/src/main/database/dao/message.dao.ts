@@ -26,20 +26,31 @@ export const MessageDao = {
     role: 'user' | 'assistant' | 'system',
     content: string
   ): { id: number } {
+    console.log(
+      '[DAO] MessageDao.create, conversationId:',
+      conversationId,
+      ', role:',
+      role,
+      ', content:',
+      content.length > 100 ? content.slice(0, 100) + '...' : content
+    )
     const db = getSQLite()
     const stmt = db.prepare(
       'INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)'
     )
     const result = stmt.run(conversationId, role, content)
+    console.log('[DAO] MessageDao.create 完成, id:', result.lastInsertRowid)
     return { id: result.lastInsertRowid as number }
   },
 
   delete(id: number): void {
+    console.log('[DAO] MessageDao.delete, id:', id)
     const db = getSQLite()
     db.prepare('DELETE FROM messages WHERE id = ?').run(id)
   },
 
   deleteByConversationId(conversationId: number): void {
+    console.log('[DAO] MessageDao.deleteByConversationId, conversationId:', conversationId)
     const db = getSQLite()
     db.prepare('DELETE FROM messages WHERE conversation_id = ?').run(conversationId)
   }

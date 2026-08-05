@@ -333,6 +333,7 @@ const showExtra = ref(false)
 let mm: gsap.MatchMedia | null = null
 
 onMounted(() => {
+  console.log('[View] Register 挂载')
   if (!rootRef.value) return
 
   mm = gsap.matchMedia()
@@ -392,6 +393,7 @@ function validatePassword(pwd: string): string {
 }
 
 async function handleRegister(): Promise<void> {
+  console.log('[View] 注册提交, 用户名:', username.value.trim())
   const usernameError = validateUsername(username.value.trim())
   const passwordError = validatePassword(password.value)
   if (usernameError || passwordError) {
@@ -427,6 +429,7 @@ async function handleRegister(): Promise<void> {
 
     // 注册成功，提示并跳转到登录页
     if (res.data?.user) {
+      console.log('[View] 注册成功，跳转登录页')
       router.push('/')
     }
   } catch (err) {

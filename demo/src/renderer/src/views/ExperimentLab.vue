@@ -346,6 +346,7 @@ function memberColor(exp: Experiment, memberId: string): string {
 }
 
 function open(id: string): void {
+  console.log('[View] 打开实验构建器, 实验ID:', id)
   router.push(`/lab/${id}`)
 }
 
@@ -355,18 +356,23 @@ function askDelete(exp: Experiment): void {
 }
 
 function confirmDelete(): void {
-  if (pendingDelete.value) experimentStore.deleteExperiment(pendingDelete.value.id)
+  if (pendingDelete.value) {
+    console.log('[View] 确认删除实验:', pendingDelete.value.id, pendingDelete.value.name)
+    experimentStore.deleteExperiment(pendingDelete.value.id)
+  }
   pendingDelete.value = null
 }
 
 function onCreated(exp: Experiment): void {
   showCreate.value = false
+  console.log('[View] 新实验创建完成，跳转构建器:', exp.id, exp.name)
   router.push(`/lab/${exp.id}`)
 }
 
 let mm: gsap.MatchMedia | null = null
 
 onMounted(() => {
+  console.log('[View] ExperimentLab 挂载, 实验数:', experimentStore.experiments.length)
   entered.value = true
   requestAnimationFrame(() => {
     if (!mainRef.value || !rootRef.value) return

@@ -13,6 +13,13 @@ export class Prompt {
     "- search_similar_compounds：搜索与给定化合物结构相似、性质相近的候选化合物。\n" +
     "  支持 PubChem CID、IUPAC 名称或 SMILES 三种查询方式。\n" +
     "  当用户要求查找类似化合物、相似分子、替代物、同系物等时，使用此工具。\n" +
+    "- query_scientific_graph：在科学知识图谱上执行 Cypher 查询。\n" +
+    "  当用户询问药物-靶点/蛋白质相互作用、化合物参与的生物过程与信号通路、疾病-基因关联、\n" +
+    "  材料属性、跨学科知识关联等问题时，使用此工具检索知识图谱。\n" +
+    "- get_kg_statistics / get_kg_node_labels / get_kg_relationship_types：查看图谱统计与结构。\n" +
+    "  编写 Cypher 之前，如不确定图谱结构，先调用这些工具了解节点/关系类型。\n" +
+    "  服务端共支持 70 个知识图谱。化学相关问题优先用 ElementKG（含元素性质、化学实验、实验步骤、实验装置、试剂、反应）；\n" +
+    "  药物/靶点/蛋白问题可用 DDKG、MKG-FENN、TxGNN、DTINet、ProteinKG25 等；材料问题用 Material、MatKG；完整列表见 query_scientific_graph 工具说明。\n" +
     "请严格按照以下 JSON 格式输出，不要输出其他内容：\n" +
     JSON.stringify(jsonTemplate, null, 2) +
     "\n\n" +

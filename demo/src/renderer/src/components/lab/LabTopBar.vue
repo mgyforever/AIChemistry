@@ -20,6 +20,33 @@
 
       <span v-if="title" class="tb-divider"></span>
       <span class="tb-title">{{ title }}</span>
+
+      <nav class="tb-nav">
+        <button
+          type="button"
+          class="tb-nav-btn"
+          :class="{ active: route.path.startsWith('/lab') }"
+          @click="router.push('/lab')"
+        >
+          实验中心
+        </button>
+        <button
+          type="button"
+          class="tb-nav-btn"
+          :class="{ active: route.path === '/repro' }"
+          @click="router.push('/repro')"
+        >
+          文献复现
+        </button>
+        <button
+          type="button"
+          class="tb-nav-btn"
+          :class="{ active: route.path === '/chat' }"
+          @click="router.push('/chat')"
+        >
+          AI 对话
+        </button>
+      </nav>
     </div>
 
     <div class="tb-right">
@@ -39,16 +66,22 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import LabIcon from './LabIcon.vue'
 import { themeStore } from '../../stores/theme'
 
-defineProps<{
+const props = defineProps<{
   title?: string
   backTo?: string
 }>()
 
 const router = useRouter()
+const route = useRoute()
+
+onMounted(() => {
+  console.log('[Component] LabTopBar 挂载, title:', props.title || '')
+})
 </script>
 
 <style scoped>
@@ -138,6 +171,30 @@ const router = useRouter()
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tb-nav {
+  display: flex;
+  gap: 2px;
+  margin-left: 8px;
+}
+.tb-nav-btn {
+  padding: 6px 11px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.tb-nav-btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+}
+.tb-nav-btn.active {
+  color: var(--color-accent-ink);
+  background: rgba(6, 182, 212, 0.12);
 }
 
 .tb-right {
