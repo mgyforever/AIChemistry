@@ -64,9 +64,11 @@ type 与 subtype 分类：
 要求：
 - 只输出 JSON，不要任何多余文字或解释。
 - type 必须是上面五类之一；subtype 必须给出（不确定时取最相近的）。
+- 禁止输出任何 HTML 标签（如 <table>/<tr>/<td>/<b>）；表格必须是纯文本二维数组，单元格内公式用 $...$ 包裹的 LaTeX 表示。
+- 所有文字字段（caption/description/series 名称等）一律使用中文输出；化学专有名词用中文，可在括号内附英文（如 铜粉(Cu powder)）；禁止中英混杂的句子，caption 控制在 50 字内。
 - 表格数据要完整准确；谱图给出坐标轴数据点与关键峰表；数据图给出各序列数据与坐标轴标签/单位。
 - 数值型数据尽量精确读取坐标轴刻度；无法读取的置为 null 或省略。
-- 化学结构式若无法准确给出 SMILES，则在 description 中用文字描述其骨架与官能团。
+- 化学结构式若无法准确给出 SMILES，则在 description 中用中文文字描述其骨架与官能团。
 - content 只包含与 type 匹配的字段，其余省略。`
 
 /**
@@ -122,7 +124,7 @@ export async function recognizeFigure(dataUrl: string): Promise<FigureRecognitio
       caption,
       // 透传 content 并附带 subtype，使细分类型随 structured_data 一并持久化
       structured: {
-        ...((parsed.content ?? {}) as StructuredFigureData),
+        ...sanitizeStructured((parsed.content ?? {}) as StructuredFigureData),
         ...(subtype ? { subtype } : {})
       }
     }
@@ -147,4 +149,70 @@ function extractJson(raw: string): Record<string, unknown> | null {
       return null
     }
   }
+}
+
+/** 剔除文本中的 HTML 标签并还原常见实体（模型偶发在表格/描述里输出 HTML） */
+function stripHtml(s: string): string {
+  return s
+    .replace(/<[^>]*>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .trim()
+}
+
+/** 将 HTML 表格字符串解析为二维数组（兼容模型输出 <table><tr><td> 的脏数据） */
+function htmlTableToRows(html: string): unknown[][] | null {
+  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
+  const rows: unknown[][] = []
+  let trMatch: RegExpExecArray | null
+  while ((trMatch = trRe.exec(html)) !== null) {
+    const tdRe = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi
+    const cells: unknown[] = []
+    let tdMatch: RegExpExecArray | null
+    while ((tdMatch = tdRe.exec(trMatch[1])) !== null) {
+      cells.push(stripHtml(tdMatch[1]))
+    }
+    if (cells.length) rows.push(cells)
+  }
+  return rows.length ? rows : null
+}
+
+/** 将模型输出的 table 归一化为二维数组（兼容数组 / JSON 数组字符串 / HTML 表格字符串） */
+function normalizeTable(table: unknown): unknown[][] | null {
+  if (Array.isArray(table)) {
+    const rows = table.filter((r): r is unknown[] => Array.isArray(r))
+    return rows.length ? rows : null
+  }
+  if (typeof table === 'string') {
+    const trimmed = table.trim()
+    if (trimmed.startsWith('[')) {
+      try {
+        const arr = JSON.parse(trimmed)
+        if (Array.isArray(arr)) return normalizeTable(arr)
+      } catch {
+        /* 继续尝试 HTML 解析 */
+      }
+    }
+    return htmlTableToRows(trimmed)
+  }
+  return null
+}
+
+/** 入库前清洗结构化数据：表格归一化为二维数组并剔除 HTML，描述剔除 HTML */
+function sanitizeStructured(content: StructuredFigureData): StructuredFigureData {
+  const out: StructuredFigureData = { ...content }
+  const rows = normalizeTable(out.table)
+  if (rows) {
+    out.table = rows.map((row) => row.map((cell) => stripHtml(String(cell ?? ''))))
+  } else {
+    delete out.table
+  }
+  if (typeof out.description === 'string') {
+    out.description = stripHtml(out.description)
+  }
+  return out
 }

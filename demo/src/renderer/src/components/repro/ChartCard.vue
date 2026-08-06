@@ -73,7 +73,21 @@ function sanitizeOption(value: unknown, isSeries = false): unknown {
 
 function applyOption(): void {
   if (!chart || !props.spec.echartsOption) return
-  const option = sanitizeOption(JSON.parse(JSON.stringify(props.spec.echartsOption))) as Record<string, unknown>
+  // 兼容 echartsOption 偶发被输出为 JSON 字符串的情况
+  let raw = props.spec.echartsOption as unknown
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw)
+    } catch {
+      console.warn('[ChartCard] echartsOption 字符串解析失败:', props.spec.title)
+      return
+    }
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    console.warn('[ChartCard] echartsOption 非法，跳过渲染:', props.spec.title)
+    return
+  }
+  const option = sanitizeOption(JSON.parse(JSON.stringify(raw))) as Record<string, unknown>
   // 跟随主题的基础样式
   const textColor = isLight.value ? '#0f172a' : '#cdd6f4'
   const muted = isLight.value ? '#64748b' : '#6c7086'

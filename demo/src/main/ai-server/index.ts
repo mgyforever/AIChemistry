@@ -1,7 +1,11 @@
 import { ipcMain } from 'electron'
 import { chatStreamWithSearch, chatStream } from './agent'
 import { experimentChat } from './experiment/agent'
-import { parseDocumentsIntoProject, saveExperimentRecordWithAnalysis } from './experiment/tools'
+import {
+  parseDocumentsIntoProject,
+  saveExperimentRecordWithAnalysis,
+  generatePaperForProject
+} from './experiment/tools'
 import type { ParseDocumentsResult, SaveRecordInput, SaveRecordResult } from './experiment/tools'
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages'
 import type { BaseMessage } from '@langchain/core/messages'
@@ -100,4 +104,12 @@ export function registerAiHandlers(): void {
       return result
     }
   )
+
+  // 生成论文（确定性路径，不依赖 agent 决策）：汇总真实数据 → LLM 生成 → 入库
+  ipcMain.handle('ai:project-generate-paper', async (_event, projectId: number): Promise<string> => {
+    console.log('[AI] generatePaper 开始:', { projectId })
+    const text = await generatePaperForProject(projectId)
+    console.log('[AI] generatePaper 完成:', { projectId, textLen: text.length })
+    return text
+  })
 }

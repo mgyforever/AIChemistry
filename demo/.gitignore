@@ -7,3 +7,4 @@ out
 .env
 src/main/database/data/
 .trae/
+docs/

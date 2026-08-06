@@ -23,6 +23,21 @@ const props = defineProps<{ data: FigureChartData }>()
 
 const chartRef = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
+let observer: ResizeObserver | null = null
+
+/** 将 LaTeX 公式文本转为可读纯文本（用于图例/坐标轴标签，避免显示原始 $...$ 或 \mathrm{}） */
+function plainifyMath(s: string): string {
+  return s
+    .replace(/\$\$([\s\S]+?)\$\$/g, '$1')
+    .replace(/\$([^$\n]+?)\$/g, '$1')
+    .replace(/\\mathrm\{([^}]*)\}/g, '$1')
+    .replace(/\\ce\{([^}]*)\}/g, '$1')
+    .replace(/[{}]/g, '')
+    .replace(/~/g, ' ')
+    .replace(/\\(?:big|left|right|[a-zA-Z]+)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 function buildOption(data: FigureChartData): echarts.EChartsOption {
   // 1. 表格数据 → bar/line（首行为表头，首列为 X 轴）
@@ -31,16 +46,16 @@ function buildOption(data: FigureChartData): echarts.EChartsOption {
     const header = (table[0] ?? []) as unknown[]
     const rows = table.slice(1) as unknown[][]
     if (!header.length) return {}
-    const xData = rows.map((r) => String(r[0] ?? ''))
+    const xData = rows.map((r) => plainifyMath(String(r[0] ?? '')))
     const series: echarts.SeriesOption[] = header.slice(1).map((h, si) => ({
-      name: String(h),
+      name: plainifyMath(String(h)),
       type: 'bar',
       data: rows.map((r) => Number(r[si + 1]) || 0)
     }))
     return {
-      grid: { left: 48, right: 24, top: 36, bottom: 48 },
+      grid: { left: 48, right: 24, top: 40, bottom: 48 },
       tooltip: { trigger: 'axis' },
-      legend: { show: series.length > 1 },
+      legend: { show: series.length > 1, type: 'scroll', top: 0, left: 8, right: 8 },
       xAxis: { type: 'category', data: xData },
       yAxis: { type: 'value' },
       series
@@ -63,19 +78,19 @@ function buildOption(data: FigureChartData): echarts.EChartsOption {
       const pts = s.data.map((d) => (Array.isArray(d) ? d : [d, 0]))
       const allNum = pts.every((p) => typeof p[0] === 'number')
       return {
-        name: s.name,
+        name: plainifyMath(s.name),
         type: 'line' as const,
         symbolSize: 6,
-        data: allNum ? pts : pts.map((p) => [String(p[0]), p[1]])
+        data: allNum ? pts : pts.map((p) => [plainifyMath(String(p[0])), p[1]])
       }
     })
     const xType = seriesArr.every((s) => s.data.every((d) => typeof d === 'number' || (Array.isArray(d) && typeof d[0] === 'number')))
       ? 'value'
       : 'category'
     return {
-      grid: { left: 48, right: 24, top: 36, bottom: 48 },
+      grid: { left: 48, right: 24, top: 40, bottom: 48 },
       tooltip: { trigger: 'axis' },
-      legend: { show: series.length > 1 },
+      legend: { show: series.length > 1, type: 'scroll', top: 0, left: 8, right: 8 },
       xAxis: { type: xType as 'value' | 'category', name: data.x_label ?? '', scale: true },
       yAxis: { type: 'value', name: data.y_label ?? '' },
       series
@@ -99,10 +114,17 @@ onMounted(() => {
     chart = echarts.init(chartRef.value)
     render()
     window.addEventListener('resize', onResize)
+    // 容器尺寸变化（切步骤/面板/窗口）时自动自适应
+    observer = new ResizeObserver(() => chart?.resize())
+    observer.observe(chartRef.value)
+    // 挂载后布局稳定再校正一次，避免初始化时宽度为 0 导致图表不撑开
+    requestAnimationFrame(() => chart?.resize())
   }
 })
 
 onBeforeUnmount(() => {
+  observer?.disconnect()
+  observer = null
   window.removeEventListener('resize', onResize)
   chart?.dispose()
   chart = null

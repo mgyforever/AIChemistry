@@ -51,11 +51,13 @@ async function generate(): Promise<void> {
   console.log('[Component] PaperPanel 生成论文, 项目ID:', props.projectId)
   loading.value = true
   try {
-    await reproStore.sendMessage('所有阶段已完成，请生成标准论文（generate_paper），内容必须属实。')
-    await reproStore.refreshContext()
+    // 确定性生成：直接走 ai:project-generate-paper，不依赖 agent 是否调用工具
+    const text = await reproStore.generatePaper()
+    reproStore.appendAssistant(text)
     console.log('[Component] PaperPanel 论文生成完成')
   } catch (err) {
     console.error('[Component] PaperPanel 论文生成异常:', err)
+    reproStore.appendAssistant(`论文生成失败：${err instanceof Error ? err.message : String(err)}`)
   } finally {
     loading.value = false
   }

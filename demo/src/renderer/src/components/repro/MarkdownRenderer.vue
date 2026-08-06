@@ -59,8 +59,24 @@ function render(content: string): string {
     return pre + key
   })
 
+  // 裸 \ce{...}（无 $ 包裹，模型常漏写）：同样交给 KaTeX/mhchem 渲染，避免显示成原文 \ceCH2Cl2
+  src = src.replace(/\\ce\{[^{}]*\}|\\ce(?!\{)([^\s\\$]+)/g, (m) => {
+    const key = `@@MATH${i++}@@`
+    try {
+      blocks[key] = renderMath(m, false)
+    } catch {
+      console.warn('[Component] MarkdownRenderer 裸 \\ce 解析失败')
+      blocks[key] = `<code>${escapeHtml(m)}</code>`
+    }
+    return key
+  })
+
   const html = marked.parse(src) as string
   return html.replace(/@@MATH\d+@@/g, (k) => blocks[k] ?? '')
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 const html = computed(() => render(props.content))

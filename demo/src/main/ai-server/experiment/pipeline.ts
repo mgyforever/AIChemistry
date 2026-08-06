@@ -519,20 +519,33 @@ const PAPER_SYSTEM =
 
 export async function generatePaper(context: string): Promise<{ title: string; content: string }> {
   console.log('[Pipeline] generatePaper 开始:', { contextLen: context.length })
-  try {
-    const user = `以下是该实验项目的全部真实数据：\n\n${context.slice(0, 30000)}`
-    const result = await callJson<{ title: string; content: string }>(PAPER_SYSTEM, user)
-    console.log('[Pipeline] generatePaper 完成:', {
-      titleLen: (result.title ?? '').length,
-      contentLen: (result.content ?? '').length
-    })
+  const user = `以下是该实验项目的全部真实数据：\n\n${context.slice(0, 30000)}`
+  const attempt = async (extraSystem = ''): Promise<{ title: string; content: string }> => {
+    const result = await callJson<{ title: string; content: string }>(PAPER_SYSTEM + extraSystem, user)
     return {
       title: result.title ?? '实验论文',
       content: result.content ?? ''
     }
+  }
+  try {
+    const result = await attempt()
+    console.log('[Pipeline] generatePaper 完成:', {
+      titleLen: result.title.length,
+      contentLen: result.content.length
+    })
+    return result
   } catch (err) {
-    console.error('[Pipeline] generatePaper 失败:', err)
-    throw err
+    // 论文内容长、含大量反斜杠/换行，偶发 JSON 解析失败；追加强制 JSON 指令重试一次
+    console.warn('[Pipeline] generatePaper 首次解析失败，重试一次:', err)
+    const retried = await attempt(
+      '\n【再次强调】必须输出严格 JSON：{"title":"论文标题","content":"论文全文 Markdown"}。' +
+        'content 内所有反斜杠写成双反斜杠（\\\\），换行写成 \\n，禁止输出 JSON 以外的任何内容。'
+    )
+    console.log('[Pipeline] generatePaper 重试成功:', {
+      titleLen: retried.title.length,
+      contentLen: retried.content.length
+    })
+    return retried
   }
 }
 

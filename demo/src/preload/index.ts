@@ -33,7 +33,10 @@ const api = {
       attachments?: string[]
       chart_data?: Record<string, unknown>
     }): Promise<{ text: string; charts: unknown[]; compliance: unknown; recordId: number }> =>
-      ipcRenderer.invoke('ai:save-record', input)
+      ipcRenderer.invoke('ai:save-record', input),
+    /** 确定性生成论文（不依赖 agent 决策），返回展示文本 */
+    generatePaper: (projectId: number): Promise<string> =>
+      ipcRenderer.invoke('ai:project-generate-paper', projectId)
   },
   db: {
     // ========== Conversation ==========

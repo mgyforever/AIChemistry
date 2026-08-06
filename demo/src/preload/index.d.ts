@@ -159,6 +159,8 @@ interface AIChatAPI {
     attachments?: string[]
     chart_data?: Record<string, unknown>
   }): Promise<{ text: string; charts: unknown[]; compliance: unknown; recordId: number }>
+  /** 确定性生成论文（不依赖 agent 决策），返回展示文本 */
+  generatePaper(projectId: number): Promise<string>
 }
 
 interface FileAPI {

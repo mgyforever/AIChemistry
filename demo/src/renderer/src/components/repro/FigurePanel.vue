@@ -18,12 +18,15 @@
               class="fig-img"
               alt="原图"
             />
-            <p v-if="f.caption" class="fig-caption">{{ f.caption }}</p>
+            <p v-if="f.caption" class="fig-caption"><FormulaText :content="f.caption" /></p>
+            <FigureChartCard v-if="chartData(f)" :data="chartData(f)!" />
             <MarkdownRenderer v-if="parsed(f).description" :content="parsed(f).description || ''" />
-            <table v-if="parsed(f).table" class="tbl">
+            <table v-if="tableRows(f).length" class="tbl">
               <tbody>
-                <tr v-for="(row, ri) in parsed(f).table" :key="ri">
-                  <td v-for="(cell, ci) in row" :key="ci">{{ cell }}</td>
+                <tr v-for="(row, ri) in tableRows(f)" :key="ri">
+                  <td v-for="(cell, ci) in row" :key="ci">
+                    <FormulaText :content="cellText(cell)" />
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -38,9 +41,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import type { FigureUI } from '../../stores/repro'
 import MarkdownRenderer from './MarkdownRenderer.vue'
+import FormulaText from './FormulaText.vue'
+import FigureChartCard from './FigureChartCard.vue'
 
 const props = defineProps<{ projectId: number | null }>()
 
@@ -63,10 +68,12 @@ async function load(): Promise<void> {
 watch(() => props.projectId, load, { immediate: true })
 
 interface ParsedFigure {
-  table?: string[][]
+  table?: unknown[][] | string
   smiles?: string
   subtype?: string
   description?: string
+  spectrum?: { x?: number[]; y?: number[] }
+  chart?: { series?: unknown[] }
 }
 
 function parsed(f: FigureUI): ParsedFigure {
@@ -78,8 +85,61 @@ function parsed(f: FigureUI): ParsedFigure {
   }
 }
 
-/** 原图本地路径 → data URL（复用 readMedia 模式，缓存避免重复读取） */
-const imgCache = new Map<string, string>()
+/** 将 HTML 表格字符串解析为二维数组（兼容模型输出的脏数据） */
+function htmlTableToRows(html: string): unknown[][] | null {
+  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
+  const rows: unknown[][] = []
+  let trMatch: RegExpExecArray | null
+  while ((trMatch = trRe.exec(html)) !== null) {
+    const tdRe = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi
+    const cells: unknown[] = []
+    let tdMatch: RegExpExecArray | null
+    while ((tdMatch = tdRe.exec(trMatch[1])) !== null) {
+      cells.push(cellText(tdMatch[1]))
+    }
+    if (cells.length) rows.push(cells)
+  }
+  return rows.length ? rows : null
+}
+
+/** 兼容模型输出的表格（数组 / JSON 数组字符串 / HTML 字符串），返回可渲染的二维数组 */
+function tableRows(f: FigureUI): unknown[][] {
+  const t = parsed(f).table
+  if (Array.isArray(t)) return t
+  if (typeof t === 'string') {
+    const trimmed = t.trim()
+    if (trimmed.startsWith('[')) {
+      try {
+        const arr = JSON.parse(trimmed) as unknown
+        if (Array.isArray(arr)) return arr as unknown[][]
+      } catch {
+        /* 继续尝试 HTML 解析 */
+      }
+    }
+    return htmlTableToRows(trimmed) ?? []
+  }
+  return []
+}
+
+/** 与 FigureChartCard 兼容的图表数据形状 */
+interface FigureChartData {
+  table?: unknown[][]
+  spectrum?: { x: number[]; y: number[] }
+  chart?: { series: Array<{ name: string; data: Array<number | [number, number]> }> }
+  x_label?: string
+  y_label?: string
+}
+
+/** 有可渲染的 ECharts 数据（数据图/谱图）时返回图表数据，否则 null */
+function chartData(f: FigureUI): FigureChartData | null {
+  const p = parsed(f)
+  const hasSeries = Array.isArray(p.chart?.series) && (p.chart?.series?.length ?? 0) > 0
+  const hasSpectrum = Array.isArray(p.spectrum?.x) && (p.spectrum?.x?.length ?? 0) > 0
+  return hasSeries || hasSpectrum ? (p as unknown as FigureChartData) : null
+}
+
+/** 原图本地路径 → data URL（复用 readMedia 模式；reactive Map 保证异步加载完成后触发重渲染） */
+const imgCache = reactive(new Map<string, string>())
 const imgLoading = new Set<string>()
 
 function imgSrc(p: string): string {
@@ -92,6 +152,19 @@ function imgSrc(p: string): string {
     imgLoading.delete(p)
   })
   return ''
+}
+
+/** 清洗模型输出的表格单元格：剔除 HTML 标签并还原常见实体，避免显示成乱码 */
+function cellText(cell: unknown): string {
+  return String(cell ?? '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .trim()
 }
 
 function typeLabel(t: string): string {

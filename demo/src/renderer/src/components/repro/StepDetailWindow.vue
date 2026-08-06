@@ -434,17 +434,35 @@
         </p>
         <div v-for="f in stepFigures" :key="String(f.id)" class="sm-figure">
           <div class="smf-head">
-            <b>{{ f.caption || `图表 ${f.figure_index || ""}` }}</b>
+            <b class="smf-title"><FormulaText :content="String(f.caption ?? '') || `图表 ${String(f.figure_index ?? '')}`" /></b>
             <span class="smf-type">{{ f.figure_type || "未识别" }}</span>
           </div>
-          <FigureChartCard
-            v-if="parseStructured(f.structured_data)"
-            :data="parseStructured(f.structured_data)!"
+          <img
+            v-if="String(f.image_path || '') && imgSrc(String(f.image_path))"
+            :src="imgSrc(String(f.image_path))"
+            class="smf-img"
+            alt="原图"
           />
-          <p
-            v-if="!parseStructured(f.structured_data) && f.ocr_text"
-            class="smf-ocr"
-          >
+          <table v-if="parsedTable(f).length" class="smf-table">
+            <tbody>
+              <tr v-for="(row, ri) in parsedTable(f)" :key="ri">
+                <td v-for="(cell, ci) in row" :key="ci">
+                  <FormulaText :content="cellText(cell)" />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <FigureChartCard
+            v-else-if="parseFigureChart(f)"
+            :data="parseFigureChart(f)!"
+          />
+          <p v-else-if="parsedDesc(f).description" class="smf-desc">
+            <MarkdownRenderer :content="parsedDesc(f).description || ''" />
+          </p>
+          <p v-else-if="parsedDesc(f).smiles" class="smf-smiles">
+            <b>SMILES</b>：{{ parsedDesc(f).smiles }}
+          </p>
+          <p v-if="f.ocr_text" class="smf-ocr">
             {{ f.ocr_text }}
           </p>
         </div>
@@ -550,6 +568,7 @@ import type {
 } from "../../stores/repro";
 import { reproStore } from "../../stores/repro";
 import MarkdownRenderer from "./MarkdownRenderer.vue";
+import FormulaText from "./FormulaText.vue";
 import ChartDataRecorder, {
   type ChartRecordData,
 } from "./ChartDataRecorder.vue";
@@ -1037,16 +1056,82 @@ const stepFigures = computed(() => {
   return allFigures.value.filter((f) => Number(f.step_id) === step.id);
 });
 
-function parseStructured(raw: unknown): ChartRecordData | null {
+/** 兼容模型输出的表格字符串（JSON 数组字符串 / HTML 表格字符串），返回二维数组或 null */
+function parseTableString(table: unknown): unknown[][] | null {
+  if (Array.isArray(table)) return table;
+  if (typeof table !== "string") return null;
+  const trimmed = table.trim();
+  if (trimmed.startsWith("[")) {
+    try {
+      const arr = JSON.parse(trimmed) as unknown;
+      if (Array.isArray(arr)) return arr as unknown[][];
+    } catch {
+      /* 继续尝试 HTML 解析 */
+    }
+  }
+  // HTML 表格字符串 → 逐行逐格提取
+  const rows: unknown[][] = [];
+  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let trMatch: RegExpExecArray | null;
+  while ((trMatch = trRe.exec(trimmed)) !== null) {
+    const cells: unknown[] = [];
+    const tdRe = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+    let tdMatch: RegExpExecArray | null;
+    while ((tdMatch = tdRe.exec(trMatch[1])) !== null) {
+      cells.push(cellText(tdMatch[1]));
+    }
+    if (cells.length) rows.push(cells);
+  }
+  return rows.length ? rows : null;
+}
+
+/** 表格类文献图表 → 二维数组（供 HTML 表格渲染，避免误用柱状图） */
+function parsedTable(f: Record<string, unknown>): unknown[][] {
   try {
-    const obj = JSON.parse(String(raw ?? "{}")) as ChartRecordData & {
-      table?: unknown[][];
+    const obj = JSON.parse(String(f.structured_data ?? "{}")) as { table?: unknown };
+    return parseTableString(obj.table) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** 非表格类文献图表（谱图/数据图）→ ECharts 数据，无则 null */
+function parseFigureChart(f: Record<string, unknown>): ChartRecordData | null {
+  try {
+    const obj = JSON.parse(String(f.structured_data ?? "{}")) as ChartRecordData & {
+      spectrum?: { x: number[]; y: number[] };
+      chart?: { series?: unknown[] };
     };
-    return obj && (Array.isArray(obj.series) || Array.isArray(obj.table))
+    return (Array.isArray(obj.series) ||
+      (Array.isArray(obj.spectrum?.x) && Array.isArray(obj.spectrum?.y)) ||
+      (Array.isArray(obj.chart?.series) && (obj.chart?.series?.length ?? 0) > 0))
       ? obj
       : null;
   } catch {
     return null;
+  }
+}
+
+/** 清洗表格单元格：剔除 HTML 标签并还原常见实体 */
+function cellText(cell: unknown): string {
+  return String(cell ?? "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+}
+
+/** 解析图表结构数据中的文本类字段（描述/SMILES），供无数据图时展示 */
+function parsedDesc(raw: unknown): { description?: string; smiles?: string } {
+  try {
+    const obj = JSON.parse(String(raw ?? "{}")) as { description?: string; smiles?: string };
+    return obj && typeof obj === "object" ? obj : {};
+  } catch {
+    return {};
   }
 }
 
@@ -1131,7 +1216,8 @@ async function runCompare(): Promise<void> {
 }
 
 /* ================= 媒体辅助 ================= */
-const imgCache = new Map<string, string>();
+// reactive Map：readMedia 异步完成后触发重渲染，否则 <img> 永远不出现
+const imgCache = reactive(new Map<string, string>());
 const imgLoading = new Set<string>();
 
 function isImage(p: string): boolean {
@@ -1717,6 +1803,37 @@ void loadFigures();
 .smf-type {
   font-size: 11px;
   color: var(--color-text-muted);
+}
+.smf-img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  margin: 0 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  object-fit: contain;
+  background: #fff;
+}
+.smf-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.smf-table td {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  word-break: break-word;
+}
+.smf-desc {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--color-text);
+}
+.smf-smiles {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--color-accent-ink);
 }
 .smf-ocr {
   margin: 6px 0 0;

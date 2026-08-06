@@ -370,11 +370,30 @@ function parseAiReply(reply: string): { think: string; messages: string; charts:
   }
 }
 
+/** 归一化图表 echartsOption：兼容 Agent 偶发把 option 输出为 JSON 字符串的情况（非法项丢弃） */
+function normalizeCharts(charts: ChartSpecUI[]): ChartSpecUI[] {
+  return charts
+    .map((c) => {
+      if (!c || typeof c !== 'object') return null
+      let opt = c.echartsOption as unknown
+      if (typeof opt === 'string') {
+        try {
+          opt = JSON.parse(opt)
+        } catch {
+          opt = null
+        }
+      }
+      if (!opt || typeof opt !== 'object' || Array.isArray(opt)) return null
+      return { ...c, echartsOption: opt as Record<string, unknown> }
+    })
+    .filter((c): c is ChartSpecUI => Boolean(c))
+}
+
 /** 解析持久化图表的 charts_json 字符串 */
 function parseChartsJson(s: string): ChartSpecUI[] {
   try {
     const arr = JSON.parse(s || '[]') as unknown
-    return Array.isArray(arr) ? (arr as ChartSpecUI[]) : []
+    return Array.isArray(arr) ? normalizeCharts(arr as ChartSpecUI[]) : []
   } catch {
     return []
   }
@@ -538,6 +557,16 @@ export const reproStore = reactive({
     }
   },
 
+  /** 确定性生成论文（直接走 ai:project-generate-paper，不依赖 agent 决策），返回展示文本 */
+  async generatePaper(): Promise<string> {
+    if (!this.currentProjectId) throw new Error('未选中项目，无法生成论文')
+    console.log('[Store] repro generatePaper 开始, 项目ID:', this.currentProjectId)
+    const text = await api.ai.generatePaper(this.currentProjectId)
+    await this.refreshContext()
+    console.log('[Store] repro generatePaper 完成')
+    return text
+  },
+
   /* ---------- AI 陪伴对话 ---------- */
   async sendMessage(message: string): Promise<void> {
     if (!message.trim() || this.isLoading) return
@@ -561,10 +590,11 @@ export const reproStore = reactive({
         history
       })
       const { messages: text, charts } = parseAiReply(reply)
-      this.messages.push({ role: 'assistant', content: text, charts })
+      const normalized = normalizeCharts(charts)
+      this.messages.push({ role: 'assistant', content: text, charts: normalized })
       if (this.currentProjectId !== null) {
         api.db.project
-          .chatAdd(this.currentProjectId, 'assistant', text, JSON.stringify(charts))
+          .chatAdd(this.currentProjectId, 'assistant', text, JSON.stringify(normalized))
           .catch((err) => console.error('[Store] repro 持久化助手消息失败:', err))
       }
       await this.refreshContext()

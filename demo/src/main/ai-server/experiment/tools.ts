@@ -1361,41 +1361,12 @@ export const runPredictionExperimentTool = tool(
 export const generatePaperTool = tool(
   async ({ project_id }: { project_id: number }) => {
     console.log('[ExperimentTools] generate_paper 开始:', { project_id })
-    const ctx = getContext(project_id)
-    if (!ctx) {
-      console.log('[ExperimentTools] generate_paper 项目不存在:', project_id)
-      return `项目 ${project_id} 不存在。`
-    }
-
-    // 汇总真实数据（含图表识别结果）
-    let context = fmtContext(ctx)
     try {
-      const records = ctx.records.map((r) => `${r.name}: ${r.content}`).join('\n')
-      if (records) context += `\n\n【实验记录原文】\n${records}`
-    } catch {
-      /* 忽略 */
-    }
-
-    let result
-    try {
-      result = await generatePaper(context)
+      return await generatePaperForProject(project_id)
     } catch (err) {
       console.error('[ExperimentTools] 论文生成失败:', err)
       return `论文生成失败: ${err instanceof Error ? err.message : String(err)}`
     }
-
-    PaperDao.create(project_id, result.title, result.content, '[]')
-    const resultText =
-      `论文已生成并保存（标题: ${result.title}）。\n\n` +
-      `> 提示：论文中凡标注【待人工补充】的位置，请用户核对后填入真实数据；` +
-      `图表占位符 ![chart:xxx] 将在前端以 ECharts 渲染，导出时可转 PNG。\n\n` +
-      result.content.slice(0, 20000)
-    console.log('[ExperimentTools] generate_paper 完成:', {
-      project_id,
-      titleLen: result.title.length,
-      contentLen: result.content.length
-    })
-    return resultText
   },
   {
     name: 'generate_paper',
@@ -1406,6 +1377,38 @@ export const generatePaperTool = tool(
     schema: z.object({ project_id: z.number() })
   }
 )
+
+/**
+ * 生成论文并入库（确定性路径，供 generate_paper 工具与 ai:project-generate-paper IPC 复用）。
+ * 汇总项目真实数据（含图表识别结果）→ LLM 生成 → 写入 papers 表 → 返回展示文本。
+ */
+export async function generatePaperForProject(project_id: number): Promise<string> {
+  const ctx = getContext(project_id)
+  if (!ctx) return `项目 ${project_id} 不存在。`
+
+  // 汇总真实数据（含图表识别结果）
+  let context = fmtContext(ctx)
+  try {
+    const records = ctx.records.map((r) => `${r.name}: ${r.content}`).join('\n')
+    if (records) context += `\n\n【实验记录原文】\n${records}`
+  } catch {
+    /* 忽略 */
+  }
+
+  const result = await generatePaper(context)
+  PaperDao.create(project_id, result.title, result.content, '[]')
+  const resultText =
+    `论文已生成并保存（标题: ${result.title}）。\n\n` +
+    `> 提示：论文中凡标注【待人工补充】的位置，请用户核对后填入真实数据；` +
+    `图表占位符 ![chart:xxx] 将在前端以 ECharts 渲染，导出时可转 PNG。\n\n` +
+    result.content.slice(0, 20000)
+  console.log('[ExperimentTools] generate_paper 完成:', {
+    project_id,
+    titleLen: result.title.length,
+    contentLen: result.content.length
+  })
+  return resultText
+}
 
 // ==================== v0.7：步骤 DAG 与阶段门禁 ====================
 
