@@ -117,6 +117,9 @@
 
       <AgentPanel class="panel-right" :style="{ width: rightWidth + 'px' }" />
     </main>
+
+    <!-- 文献分析进度浮层（阶段动画与主进程解析阶段同步） -->
+    <ImportProgressOverlay v-if="showImportOverlay" :progress="importProgress" />
   </div>
 </template>
 
@@ -132,10 +135,15 @@ import FigurePanel from '../components/repro/FigurePanel.vue'
 import PaperPanel from '../components/repro/PaperPanel.vue'
 import ReferenceProjectsPanel from '../components/repro/ReferenceProjectsPanel.vue'
 import AgentPanel from '../components/repro/AgentPanel.vue'
+import ImportProgressOverlay, { type ImportProgress } from '../components/repro/ImportProgressOverlay.vue'
 
 const api = window.api
 
 const activeTab = ref('plan')
+
+/* ---------- 文献导入进度浮层（与主进程 document-import:progress 阶段同步） ---------- */
+const importProgress = ref<ImportProgress | null>(null)
+const showImportOverlay = ref(false)
 
 const tabs = [
   { key: 'plan', label: '复现方案' },
@@ -209,9 +217,6 @@ async function markComplete(): Promise<void> {
   if (!currentProjectId.value) return
   console.log('[View] 标记为已完成, 项目ID:', currentProjectId.value)
   await reproStore.updateStatus('completed')
-  await reproStore.sendMessage(
-    '实验已结束。请先完成 AI 总结与联想（suggest_optimizations / analyze_variable_effects），并提示用户是否生成论文（可选）。'
-  )
 }
 
 /* ---------- 阶段切换门控：方案确认后才可进入阶段与记录 ---------- */
@@ -375,15 +380,23 @@ onBeforeUnmount(() => {
   if (onMove) window.removeEventListener('mousemove', onMove)
   if (onUp) window.removeEventListener('mouseup', onUp)
   stopEventListeners?.()
+  stopImportProgress?.()
 })
 
 /** 主进程事件监听注销函数（v0.10 §10.4） */
 let stopEventListeners: (() => void) | null = null
+/** 文献导入进度事件注销函数 */
+let stopImportProgress: (() => void) | null = null
 
 onMounted(async () => {
   console.log('[View] ReproductionLab 挂载，开始加载项目列表')
   // 注册主进程事件监听：步骤/门禁/分叉/入库/共享等状态变更自动刷新（§10.4）
   stopEventListeners = reproStore.initEventListeners()
+  // 文献导入/图表解析进度：驱动等待浮层的阶段动画（与实际解析阶段同步）
+  stopImportProgress = api.onExperimentEvent('document-import:progress', (payload) => {
+    importProgress.value = (payload ?? {}) as typeof importProgress.value
+    console.log('[View] 文献导入进度:', importProgress.value?.stage, importProgress.value?.detail ?? '')
+  })
   await reproStore.loadProjects()
   // 优先恢复到上次打开的项目（中断续做），否则默认第一个项目
   const lastId = loadLastProjectId()
@@ -415,33 +428,34 @@ async function createProject(name: string): Promise<void> {
   await reproStore.selectProject(id)
   activeTab.value = 'plan'
   console.log('[View] 项目创建完成:', id)
-  await reproStore.sendMessage(`项目"${name}"已创建（空项目）。请引导用户上传文献以生成复现方案，或先说明如何使用本工作台。`)
 }
 
 async function importDocs(): Promise<void> {
   console.log('[View] 导入文献开始')
+  // 打开进度浮层：阶段动画随主进程 document-import:progress 事件同步切换
+  showImportOverlay.value = true
+  importProgress.value = { stage: 'parsing', detail: '准备导入文献…' }
   const results = await reproStore.importDocuments()
-  if (!results.length) return
+  if (!results.length) {
+    console.warn('[View] 未导入任何文献，关闭浮层')
+    showImportOverlay.value = false
+    return
+  }
   const ids = (results as Array<{ documentId: number }>).map((r) => r.documentId)
   console.log('[View] 文献导入完成, document_ids:', ids.join(','))
   if (!currentProjectId.value) {
     console.warn('[View] 未选中项目，无法解析文献')
+    showImportOverlay.value = false
     return
   }
-  // 确定性解析到当前项目（不依赖 agent 决策），完成后直接展示结果
+  // 确定性解析到当前项目（不依赖 agent 决策）；解析结果仅在「复现方案」页展示，不注入聊天框
+  importProgress.value = { stage: 'planning', detail: '正在根据文献生成复现方案…' }
   try {
-    const parsed = await reproStore.parseDocumentsToProject(ids)
-    reproStore.appendAssistant(parsed.text, parsed.charts)
-    // 告知 agent 解析已完成，便于后续陪伴对话
-    await reproStore.sendMessage(
-      `文献已通过确定性解析写入项目 ${currentProjectId.value}（document_ids=${ids.join(',')}），复现方案已生成。请基于此与用户继续讨论，用户提出修改建议时用 update_reproduction_plan 调整。`
-    )
+    await reproStore.parseDocumentsToProject(ids)
   } catch (err) {
     console.error('[View] 文献解析失败:', err)
-    await reproStore.sendMessage(
-      `文献已导入（document_ids=${ids.join(',')}），但自动解析失败：${err instanceof Error ? err.message : String(err)}。` +
-        `请调用 parse_documents_into_project 重试解析到当前项目，或引导用户检查文献。`
-    )
+  } finally {
+    showImportOverlay.value = false
   }
 }
 </script>

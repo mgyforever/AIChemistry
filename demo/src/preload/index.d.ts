@@ -45,14 +45,20 @@ interface ProjectAPI {
   addDocument(projectId: number, documentId: number, role?: string): Promise<{ id: number }>
   context(id: number): Promise<unknown>
   /** 项目 AI 陪伴对话（持久化，中断后可恢复） */
-  chatList(projectId: number): Promise<unknown[]>
+  chatList(conversationId: number): Promise<unknown[]>
   chatAdd(
     projectId: number,
     role: 'user' | 'assistant',
     content: string,
-    chartsJson?: string
+    chartsJson?: string,
+    conversationId?: number
   ): Promise<{ id: number }>
   chatClear(projectId: number): Promise<void>
+  /** 会话分组（新建对话 / 历史对话） */
+  chatConversations(projectId: number): Promise<unknown[]>
+  chatConversationCreate(projectId: number, title?: string): Promise<{ id: number }>
+  chatConversationRename(id: number, title: string): Promise<void>
+  chatConversationDelete(id: number): Promise<void>
 }
 
 interface ReproductionAPI {

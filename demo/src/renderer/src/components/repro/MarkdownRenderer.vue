@@ -93,6 +93,22 @@ const html = computed(() => render(props.content))
   line-height: 1.7;
   color: var(--color-text);
   word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
+}
+/* 超长行内公式：允许在气泡内横向滚动，避免文字溢出气泡 */
+.repro-md :deep(.katex) {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  vertical-align: middle;
+}
+.repro-md :deep(.katex-display) {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
 }
 :deep(.markdown-body) {
   background: transparent;

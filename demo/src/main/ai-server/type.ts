@@ -76,6 +76,8 @@ export interface ProjectChat {
   id: number
   /** 所属项目 */
   project_id: number
+  /** 所属会话（project_chat_conversations.id，可空 = 旧数据未分组） */
+  conversation_id?: number | null
   /** 角色：user / assistant */
   role: 'user' | 'assistant'
   /** 消息正文（assistant 为展示文本） */
@@ -84,6 +86,24 @@ export interface ProjectChat {
   charts_json: string
   /** 创建时间 */
   created_at: string
+}
+
+/** 项目 AI 陪伴对话-会话分组（新建对话 / 历史对话） */
+export interface ProjectChatConversation {
+  /** 会话 ID */
+  id: number
+  /** 所属项目 */
+  project_id: number
+  /** 会话标题（缺省"新对话"） */
+  title: string
+  /** 创建时间 */
+  created_at: string
+  /** 最近活跃时间 */
+  updated_at: string
+  /** 消息数（列表联查） */
+  message_count?: number
+  /** 最近一条消息预览（列表联查） */
+  preview?: string
 }
 
 /** 项目-文献关联 */
@@ -701,6 +721,18 @@ export interface DocumentFigure {
   created_at: string
 }
 
+/** 待识别图片及其论文上下文（P4：VLM 上下文注入） */
+export interface FigureSource {
+  /** 图片 dataURL */
+  dataUrl: string
+  /** 所在页码（1-based，可空） */
+  pageNumber?: number
+  /** 图题（论文正文中的 "Figure N. ..."，可空） */
+  caption?: string
+  /** 所在页及邻近页正文片段（截断后，可空） */
+  pageText?: string
+}
+
 /** 结构化识别结果（对应 document_figures.structured_data 的 JSON 结构） */
 export interface StructuredFigureData {
   /** 表格数据（二维数组，首行为表头） */
@@ -1024,6 +1056,8 @@ export type ExperimentEventName =
   | 'experiment:share-request-received'
   /** 共享请求审批结果 */
   | 'experiment:share-resolved'
+  /** 文献导入/图表解析进度（用于前端等待动画阶段同步） */
+  | 'document-import:progress'
 
 /** 状态变更类型 */
 export type ExperimentStateKind =
@@ -1048,4 +1082,41 @@ export interface ExperimentEventPayload {
   entityId?: number
   /** 扩展字段（如 scope 变更值） */
   [key: string]: unknown
+}
+
+/** 文献导入/图表解析进度阶段（document-import:progress，前端等待动画按此切换） */
+export type DocumentImportStage =
+  /** 文本/图片/表格提取（MinerU 或本地 pdfjs） */
+  | 'parsing'
+  /** 入库 + markdown 落盘 */
+  | 'saving'
+  /** 论文摘要生成 */
+  | 'summarizing'
+  /** VLM 图片识别（含逐张完成进度） */
+  | 'recognizing'
+  /** OCR 文字识别兜底（仅 VLM 失败/未配置时） */
+  | 'ocr'
+  /** 复现方案生成（渲染进程本地阶段，用于等待动画） */
+  | 'planning'
+  /** 完成 */
+  | 'done'
+
+/** 文献导入进度负载 */
+export interface DocumentImportProgress {
+  /** 当前阶段 */
+  stage: DocumentImportStage
+  /** 当前文件序号（1-based，多文件导入） */
+  fileIndex?: number
+  /** 文件总数 */
+  fileTotal?: number
+  /** 文件名 */
+  fileName?: string
+  /** 解析器：mineru / local */
+  parser?: string
+  /** 图片识别进度：当前完成序号（0-based，VLM 逐张回调） */
+  imageIndex?: number
+  /** 图片总数 */
+  imageTotal?: number
+  /** 阶段说明文案 */
+  detail?: string
 }

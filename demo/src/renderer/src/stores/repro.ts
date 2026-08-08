@@ -19,6 +19,17 @@ export interface AgentMsgUI {
   charts?: ChartSpecUI[]
 }
 
+/** 项目 AI 陪伴对话-会话（新建对话 / 历史对话，与主进程 type.ts 对应） */
+export interface ChatConversationUI {
+  id: number
+  project_id: number
+  title: string
+  created_at: string
+  updated_at: string
+  message_count?: number
+  preview?: string
+}
+
 export interface ProjectUI {
   id: number
   name: string
@@ -405,6 +416,10 @@ export const reproStore = reactive({
   context: null as ProjectContextUI | null,
   /** 当前项目是否处于"预测实验"模式的变量集 */
   messages: [] as AgentMsgUI[],
+  /** 当前项目的 AI 陪伴对话会话列表（新建对话 / 历史对话） */
+  conversations: [] as ChatConversationUI[],
+  /** 当前会话 ID（null = 尚未有会话） */
+  currentConversationId: null as number | null,
   isLoading: false,
   /** 已确认复现方案的项目 ID 集合（确认后允许进入阶段与记录） */
   planConfirmedIds: loadPlanConfirmedIds(),
@@ -423,15 +438,52 @@ export const reproStore = reactive({
     saveLastProjectId(id)
     this.messages = []
     await this.refreshContext()
-    // 恢复该项目持久化的 AI 陪伴对话（实验中断后上下文不丢失）
-    this.messages = await this.loadChats(id)
-    console.log('[Store] repro selectProject 完成, 项目ID:', id, ', 恢复对话数:', this.messages.length)
+    // 恢复该项目持久化的 AI 陪伴对话（按会话分组：默认选中最近活跃的会话）
+    await this.loadConversations(id)
+    console.log(
+      '[Store] repro selectProject 完成, 项目ID:',
+      id,
+      ', 会话数:',
+      this.conversations.length,
+      ', 恢复对话数:',
+      this.messages.length
+    )
   },
 
-  /** 加载项目持久化的 AI 陪伴对话 */
-  async loadChats(projectId: number): Promise<AgentMsgUI[]> {
+  /** 加载某项目的会话列表，默认选中最近活跃的会话并加载其消息 */
+  async loadConversations(projectId: number): Promise<void> {
     try {
-      const rows = (await api.db.project.chatList(projectId)) as Array<{
+      const list = (await api.db.project.chatConversations(projectId)) as ChatConversationUI[]
+      this.conversations = list
+      if (list.length) {
+        this.currentConversationId = list[0].id
+        this.messages = await this.loadChatMessages(list[0].id)
+      } else {
+        this.currentConversationId = null
+        this.messages = []
+      }
+    } catch (err) {
+      console.error('[Store] repro 加载项目会话失败:', err)
+      this.conversations = []
+      this.currentConversationId = null
+      this.messages = []
+    }
+  },
+
+  /** 刷新会话列表（保持当前会话不变），发送消息后用于更新排序/预览 */
+  async refreshConversations(): Promise<void> {
+    if (!this.currentProjectId) return
+    try {
+      this.conversations = (await api.db.project.chatConversations(this.currentProjectId)) as ChatConversationUI[]
+    } catch (err) {
+      console.error('[Store] repro 刷新会话列表失败:', err)
+    }
+  },
+
+  /** 加载某会话的持久化消息 */
+  async loadChatMessages(conversationId: number): Promise<AgentMsgUI[]> {
+    try {
+      const rows = (await api.db.project.chatList(conversationId)) as Array<{
         role: 'user' | 'assistant'
         content: string
         charts_json: string
@@ -444,6 +496,49 @@ export const reproStore = reactive({
     } catch (err) {
       console.error('[Store] repro 加载项目对话失败:', err)
       return []
+    }
+  },
+
+  /** 切换会话（历史对话） */
+  async selectConversation(id: number): Promise<void> {
+    if (id === this.currentConversationId) return
+    console.log('[Store] repro selectConversation, 会话ID:', id)
+    this.currentConversationId = id
+    this.messages = await this.loadChatMessages(id)
+  },
+
+  /** 新建对话（立即创建并切换为空会话） */
+  async createConversation(title = '新对话'): Promise<ChatConversationUI> {
+    if (!this.currentProjectId) throw new Error('未选中项目')
+    console.log('[Store] repro createConversation, 项目ID:', this.currentProjectId)
+    const { id } = await api.db.project.chatConversationCreate(this.currentProjectId, title)
+    const conv: ChatConversationUI = {
+      id,
+      project_id: this.currentProjectId,
+      title,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      message_count: 0,
+      preview: ''
+    }
+    this.conversations.unshift(conv)
+    this.currentConversationId = id
+    this.messages = []
+    return conv
+  },
+
+  /** 删除会话（该会话下消息级联删除） */
+  async deleteConversation(id: number): Promise<void> {
+    console.log('[Store] repro deleteConversation, 会话ID:', id)
+    await api.db.project.chatConversationDelete(id)
+    this.conversations = this.conversations.filter((c) => c.id !== id)
+    if (this.currentConversationId === id) {
+      if (this.conversations.length) {
+        await this.selectConversation(this.conversations[0].id)
+      } else {
+        this.currentConversationId = null
+        this.messages = []
+      }
     }
   },
 
@@ -494,6 +589,8 @@ export const reproStore = reactive({
       this.currentProjectId = null
       this.context = null
       this.messages = []
+      this.conversations = []
+      this.currentConversationId = null
     }
     await this.loadProjects()
     console.log('[Store] repro deleteProject 完成, 项目ID:', id)
@@ -547,16 +644,6 @@ export const reproStore = reactive({
     return { text: result.text, charts }
   },
 
-  /** 追加一条助手消息（用于确定性解析结果的直接展示），并持久化以便中断后恢复 */
-  appendAssistant(content: string, charts: ChartSpecUI[] = []): void {
-    this.messages.push({ role: 'assistant', content, charts })
-    if (this.currentProjectId !== null) {
-      api.db.project
-        .chatAdd(this.currentProjectId, 'assistant', content, JSON.stringify(charts))
-        .catch((err) => console.error('[Store] repro 持久化助手消息失败:', err))
-    }
-  },
-
   /** 确定性生成论文（直接走 ai:project-generate-paper，不依赖 agent 决策），返回展示文本 */
   async generatePaper(): Promise<string> {
     if (!this.currentProjectId) throw new Error('未选中项目，无法生成论文')
@@ -570,14 +657,24 @@ export const reproStore = reactive({
   /* ---------- AI 陪伴对话 ---------- */
   async sendMessage(message: string): Promise<void> {
     if (!message.trim() || this.isLoading) return
+    if (!this.currentProjectId) return
     console.log('[Store] repro sendMessage 开始:', message.slice(0, 50))
+    // 确保有当前会话：无会话时自动新建（以问题为标题）；"新对话"首次提问时以问题为标题
+    if (!this.currentConversationId) {
+      await this.createConversation(message.slice(0, 24))
+    } else {
+      const conv = this.conversations.find((c) => c.id === this.currentConversationId)
+      if (conv && conv.title === '新对话') {
+        api.db.project.chatConversationRename(conv.id, message.slice(0, 24)).catch(() => {})
+        conv.title = message.slice(0, 24)
+      }
+    }
+    const conversationId = this.currentConversationId as number
     this.messages.push({ role: 'user', content: message })
     // 用户消息先持久化：即使本次 AI 回复中断（如关闭应用），下次进入也能看到已发送内容
-    if (this.currentProjectId !== null) {
-      api.db.project
-        .chatAdd(this.currentProjectId, 'user', message)
-        .catch((err) => console.error('[Store] repro 持久化用户消息失败:', err))
-    }
+    api.db.project
+      .chatAdd(this.currentProjectId, 'user', message, '[]', conversationId)
+      .catch((err) => console.error('[Store] repro 持久化用户消息失败:', err))
     this.isLoading = true
     try {
       const history = this.messages.slice(0, -1).map((m) => ({
@@ -585,18 +682,18 @@ export const reproStore = reactive({
         content: m.role === 'assistant' ? JSON.stringify({ messages: m.content, charts: m.charts ?? [] }) : m.content
       }))
       const reply = await api.ai.experimentChat({
-        projectId: this.currentProjectId ?? undefined,
+        projectId: this.currentProjectId,
         message,
         history
       })
       const { messages: text, charts } = parseAiReply(reply)
       const normalized = normalizeCharts(charts)
       this.messages.push({ role: 'assistant', content: text, charts: normalized })
-      if (this.currentProjectId !== null) {
-        api.db.project
-          .chatAdd(this.currentProjectId, 'assistant', text, JSON.stringify(normalized))
-          .catch((err) => console.error('[Store] repro 持久化助手消息失败:', err))
-      }
+      api.db.project
+        .chatAdd(this.currentProjectId, 'assistant', text, JSON.stringify(normalized), conversationId)
+        .catch((err) => console.error('[Store] repro 持久化助手消息失败:', err))
+      // 刷新会话列表（排序/预览随新消息更新）
+      await this.refreshConversations()
       await this.refreshContext()
       console.log('[Store] repro sendMessage 完成, 当前消息数:', this.messages.length)
     } catch (err) {

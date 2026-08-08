@@ -22,7 +22,7 @@
                 <b>{{ s.title || `步骤 ${s.step_no}` }}</b>
                 <span class="step-status" :class="s.status">{{ stepLabel(s.status) }}</span>
               </div>
-              <p class="step-desc">{{ s.description }}</p>
+              <div class="step-desc"><MarkdownRenderer :content="s.description" /></div>
               <p v-if="s.depends_on.length" class="step-deps">
                 前置：{{ s.depends_on.map((d) => stepTitle(d) || `步骤 ${d}`).join(' → ') }}
               </p>

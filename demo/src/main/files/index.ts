@@ -1,5 +1,6 @@
 import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
 import { readFileSync, existsSync } from 'fs'
+import { performance } from 'perf_hooks'
 import { readDocument } from './reader'
 import { parseDocumentFigures } from './figures'
 import {
@@ -9,8 +10,9 @@ import {
   saveMineruMd
 } from './mineru'
 import { DocumentDao } from '../database/dao/document.dao'
+import { notifyDocumentImportProgress } from '../ai-server/experiment/events'
 import { extname } from 'path'
-import type { DocumentImportResult } from '../ai-server/type'
+import type { DocumentImportResult, FigureSource } from '../ai-server/type'
 
 /**
  * 文件导入 IPC（P3/P4，v0.8：PDF 走 MinerU 精准解析）
@@ -40,23 +42,34 @@ export function registerFileHandlers(): void {
   ipcMain.handle('file:import', async (_e, paths: string[]): Promise<DocumentImportResult[]> => {
     console.log('[Files] 开始导入文件，数量:', paths.length, '路径:', paths)
     const results: DocumentImportResult[] = []
-    for (const p of paths) {
+    const fileTotal = paths.length
+    for (let fi = 0; fi < paths.length; fi++) {
+      const p = paths[fi]
+      const fileName = p.split(/[\\/]/).pop() ?? p
+      const t0 = performance.now()
       try {
         // v0.8：PDF 优先走 MinerU 精准解析（配置 MINERU_API_KEY 时），失败自动降级本地
         let title = ''
         let content = ''
-        let images: string[] = []
+        let images: FigureSource[] = []
         let tables: unknown[][][] = []
         let parser = 'local'
         let mineru: Awaited<ReturnType<typeof parsePdfWithMineru>> = null
+        notifyDocumentImportProgress({
+          stage: 'parsing',
+          fileIndex: fi + 1,
+          fileTotal,
+          fileName,
+          detail: `正在解析 ${fileName}…`
+        })
         if (extname(p).toLowerCase() === '.pdf') {
           mineru = await parsePdfWithMineru(p)
           if (mineru) {
             content = mineru.text
             tables = mineru.tables
             parser = 'mineru'
-            // v3 问题⑦：MinerU 图片块（已从结果 zip 提取为 dataURL），紧接图表解析
-            images = mineru.images.map((i) => i.path)
+            // v3 问题⑦：MinerU 图片块（已从结果 zip 提取为 dataURL），连同自带图题紧接图表解析
+            images = mineru.images.map((i) => ({ dataUrl: i.path, caption: i.caption }))
           }
         }
         if (parser !== 'mineru') {
@@ -66,6 +79,15 @@ export function registerFileHandlers(): void {
           images = doc.images
           tables = doc.tables
         }
+        const tParse = performance.now()
+        notifyDocumentImportProgress({
+          stage: 'saving',
+          fileIndex: fi + 1,
+          fileTotal,
+          fileName,
+          parser,
+          detail: `正在保存 ${title || basenameNoExt(p)}…`
+        })
         const { id } = DocumentDao.create(
           title || basenameNoExt(p),
           content,
@@ -86,8 +108,35 @@ export function registerFileHandlers(): void {
             /* 忽略 metadata 更新失败 */
           }
         }
-        // v0.8：图表解析（MinerU 与本地路径均执行；MinerU 表格结构化、图片 VLM/OCR）
-        const figureCount = await parseDocumentFigures(id, images, tables)
+        const tDb = performance.now()
+        // v0.8：图表解析（MinerU 与本地路径均执行；MinerU 表格结构化、图片 VLM/OCR，VLM 注入论文上下文）
+        const figureCount = await parseDocumentFigures(id, images, tables, content)
+        notifyDocumentImportProgress({
+          stage: 'done',
+          fileIndex: fi + 1,
+          fileTotal,
+          fileName,
+          detail: `「${title || basenameNoExt(p)}」导入完成，识别图表 ${figureCount} 张`
+        })
+        const tFigure = performance.now()
+        const totalMs = tFigure - t0
+        const parseMs = tParse - t0 // 文本/图片/表格提取（MinerU 或本地 pdfjs）
+        const dbMs = tDb - tParse // 入库 + markdown 落盘
+        const figuresMs = tFigure - tDb // 图表解析（摘要 + VLM/OCR）
+        const pct = (ms: number): string =>
+          `${Math.round(ms)}ms (${(totalMs > 0 ? (ms / totalMs) * 100 : 0).toFixed(1)}%)`
+        console.log(
+          '[Files] 导入耗时占比: ' +
+            `${parser}解析 ` +
+            pct(parseMs) +
+            '，入库+markdown落盘 ' +
+            pct(dbMs) +
+            '，图表解析 ' +
+            pct(figuresMs) +
+            '，总计 ' +
+            Math.round(totalMs) +
+            'ms'
+        )
         results.push({
           documentId: id,
           title: title || basenameNoExt(p),

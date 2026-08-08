@@ -7,33 +7,10 @@
       </button>
     </div>
 
-    <p class="bp-hint">每个分叉从分叉点之后的阶段完全独立（树状，可再分叉），数据互不干扰。</p>
+    <p class="bp-hint">树状图每个节点代表一条并行实验路径（可再分叉）；点击节点切换查看。创建并行实验后，新节点会出现在对应父节点之下。</p>
 
-    <!-- 分叉树（主线 + 各分支） -->
-    <div class="bp-tree">
-      <div
-        class="bp-node"
-        :class="{ active: currentBranchId === null, done: isMainDone }"
-        @click="switchTo(null)"
-      >
-        <span class="bp-node-name">主线流程</span>
-        <span v-if="isMainDone" class="bp-tag done">已完成</span>
-        <span class="bp-tag">branch_id=null</span>
-      </div>
-      <div
-        v-for="b in branches"
-        :key="b.id"
-        class="bp-node"
-        :class="{ active: currentBranchId === b.id, done: b.index_status === 'indexed' }"
-        @click="switchTo(b.id)"
-      >
-        <span class="bp-node-name">{{ b.name }}</span>
-        <span class="bp-tag" :class="b.index_status === 'indexed' ? 'done' : ''">
-          {{ b.index_status === 'indexed' ? '已入库' : '待整理' }}
-        </span>
-        <span v-if="b.parent_branch_id !== null" class="bp-tag sub">子分叉</span>
-      </div>
-    </div>
+    <!-- 实验树状图（v0.8 树分叉 + 步骤/变体节点，数据持久化于项目 branches/steps，每项目一棵树） -->
+    <ExperimentTree :ctx="ctx" :current-branch-id="currentBranchId" @switch="switchTo" @open-step="openStep" />
 
     <!-- 创建分叉表单 -->
     <form v-if="showCreate" class="bp-form" @submit.prevent="createBranch">
@@ -81,6 +58,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import type { ProjectContextUI } from '../../stores/repro'
+import ExperimentTree from './ExperimentTree.vue'
 
 const props = defineProps<{
   ctx: ProjectContextUI | null
@@ -100,16 +78,16 @@ const currentPhases = computed(() => {
     .sort((a, b) => Number(a.phase_order) - Number(b.phase_order))
 })
 
-/** 主线是否完成（主线全部阶段 completed） */
-const isMainDone = computed(() => {
-  const main = (props.ctx?.phases ?? []).filter((p) => p.branch_id === null)
-  return main.length > 0 && main.every((p) => p.status === 'completed')
-})
-
 /* ---------- 切换分支 ---------- */
 function switchTo(branchId: number | null): void {
   if (props.currentBranchId === branchId) return
   emit('switch', branchId)
+}
+
+/** 打开步骤详情窗口（树中步骤/变体节点点击） */
+function openStep(stepId: number): void {
+  if (!props.ctx) return
+  void api.window.openStepDetail(props.ctx.project.id, stepId)
 }
 
 /* ---------- 创建分叉 ---------- */
@@ -188,18 +166,6 @@ async function finishCurrent(): Promise<void> {
 .bp-create-btn:hover:not(:disabled) { opacity: 0.9; }
 .bp-create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .bp-hint { margin: 6px 0 0; font-size: 11.5px; color: var(--color-text-muted); }
-.bp-tree { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.bp-node {
-  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-  border: 1px solid var(--color-border); border-radius: 10px; cursor: pointer; transition: all var(--transition-fast);
-}
-.bp-node:hover { border-color: var(--color-primary-light); }
-.bp-node.active { border-color: var(--color-primary-light); background: rgba(99, 102, 241, 0.08); }
-.bp-node.done { opacity: 0.75; }
-.bp-node-name { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--color-text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bp-tag { flex-shrink: 0; padding: 2px 8px; border-radius: 6px; font-size: 11px; color: var(--color-text-muted); background: var(--color-surface); }
-.bp-tag.done { color: var(--color-success); background: rgba(34, 197, 94, 0.12); }
-.bp-tag.sub { color: var(--color-accent-ink); background: rgba(56, 189, 248, 0.12); }
 .bp-form { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; padding: 12px; border: 1px dashed var(--color-primary-light); border-radius: 12px; }
 .bp-row { display: flex; flex-direction: column; gap: 4px; }
 .bp-label { font-size: 12px; color: var(--color-text-muted); }

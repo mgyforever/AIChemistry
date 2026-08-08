@@ -378,7 +378,7 @@ export const importDocumentsTool = tool(
       try {
         const doc = await readDocument(p)
         const { id } = DocumentDao.create(title || doc.title, doc.content, JSON.stringify({ sourcePath: p }))
-        const figureCount = await parseDocumentFigures(id, doc.images, doc.tables)
+        const figureCount = await parseDocumentFigures(id, doc.images, doc.tables, doc.content)
         results.push({
           documentId: id,
           title: title || doc.title,
@@ -615,18 +615,22 @@ export async function parseDocumentsIntoProject(
   ReproductionDao.upsertAssessment(projectId, extraction.assessment)
 
   // v0.9：为各阶段生成实验变量（Agent 依据文献设计，用户可增删改）
+  // 优化：多阶段变量生成并发调用 LLM，显著缩短"方案规划"阶段耗时
   try {
-    for (const p of extraction.phases) {
-      const vars = await generatePhaseVariables(p.name, p.expected, joined)
-      if (vars.length) {
-        const phase = ExperimentDao.phases(projectId).find((ph) => ph.name === p.name)
-        if (phase) {
-          vars.forEach((v) =>
-            ExperimentDao.upsertPhaseVariable({ ...v, project_id: projectId, phase_id: phase.id })
-          )
+    const existingPhases = ExperimentDao.phases(projectId)
+    await Promise.all(
+      extraction.phases.map(async (p) => {
+        const vars = await generatePhaseVariables(p.name, p.expected, joined)
+        if (vars.length) {
+          const phase = existingPhases.find((ph) => ph.name === p.name)
+          if (phase) {
+            vars.forEach((v) =>
+              ExperimentDao.upsertPhaseVariable({ ...v, project_id: projectId, phase_id: phase.id })
+            )
+          }
         }
-      }
-    }
+      })
+    )
   } catch (err) {
     console.error('[Tools] 阶段实验变量生成失败（不影响主流程）:', err)
   }
@@ -643,11 +647,11 @@ export async function parseDocumentsIntoProject(
   // 更新项目摘要
   ProjectDao.update(projectId, { summary: extraction.summary })
 
-  // 向量摘要
-  await addProjectSummaries(projectId, [
+  // 向量摘要：挪到后台异步入库，不阻塞解析返回（即时可用性以结构化数据为准）
+  void addProjectSummaries(projectId, [
     { text: extraction.summary, source: 'document' },
     ...steps.map((s) => ({ text: `${s.step_no}. ${s.title}: ${s.description}`, source: 'step' as const }))
-  ])
+  ]).catch((err) => console.error('[Tools] 向量摘要入库失败（不影响主流程）:', err))
 
   // 图表：难度雷达 + 材料配比
   const charts: ChartSpec[] = []

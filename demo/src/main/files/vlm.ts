@@ -1,4 +1,6 @@
 import dotenv from 'dotenv'
+import { performance } from 'perf_hooks'
+import { model } from '../ai-server/model'
 import type { FigureType, StructuredFigureData } from '../ai-server/type'
 
 dotenv.config()
@@ -31,6 +33,16 @@ export interface FigureRecognition {
   caption: string
   /** 结构化数据 */
   structured: StructuredFigureData
+}
+
+/** 图片识别上下文（P4：论文上下文注入，帮助 VLM 结合全文理解图片） */
+export interface FigureContext {
+  /** 论文整体摘要（文献目的/研究对象/关键结果） */
+  summary?: string
+  /** 图题（论文正文中的 "Figure N. ..."） */
+  caption?: string
+  /** 所在页及邻近页正文摘录 */
+  pageText?: string
 }
 
 /** 识别提示词（6.3 契约 JSON：type 五类 + subtype 细分，覆盖化学论文绝大多数图类） */
@@ -73,11 +85,13 @@ type 与 subtype 分类：
 
 /**
  * 调用 Kimi-K2.6（SiliconFlow）识别单张图块。
+ * ctx 为论文上下文（摘要/图题/所在页正文），帮助模型结合全文精确理解图片。
  * 失败/非法 JSON 返回 null（由调用方降级为 OCR + 人工）。
  */
-export async function recognizeFigure(dataUrl: string): Promise<FigureRecognition | null> {
+export async function recognizeFigure(dataUrl: string, ctx?: FigureContext): Promise<FigureRecognition | null> {
   console.log('[VLM] 开始识别图片，已配置:', isVlmConfigured(), '图片数据长度:', dataUrl.length)
   if (!isVlmConfigured()) return null
+  const t0 = performance.now()
   try {
     const res = await fetch(`${BASE_URL!.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
@@ -91,7 +105,7 @@ export async function recognizeFigure(dataUrl: string): Promise<FigureRecognitio
           {
             role: 'user',
             content: [
-              { type: 'text', text: PROMPT },
+              { type: 'text', text: PROMPT + buildContextBlock(ctx) },
               { type: 'image_url', image_url: { url: dataUrl } }
             ]
           }
@@ -103,7 +117,7 @@ export async function recognizeFigure(dataUrl: string): Promise<FigureRecognitio
     })
 
     if (!res.ok) {
-      console.warn('[VLM] 请求失败:', res.status, (await res.text()).slice(0, 300))
+      console.warn('[VLM] 请求失败:', res.status, (await res.text()).slice(0, 300), '耗时:', Math.round(performance.now() - t0), 'ms')
       return null
     }
 
@@ -117,7 +131,13 @@ export async function recognizeFigure(dataUrl: string): Promise<FigureRecognitio
     const type = (parsed.type as FigureType) ?? 'photograph'
     const subtype = typeof parsed.subtype === 'string' ? parsed.subtype : undefined
     const caption = typeof parsed.caption === 'string' ? parsed.caption : ''
-    console.log('[VLM] 识别成功:', JSON.stringify({ type, subtype, captionLength: caption.length }))
+    console.log(
+      '[VLM] 识别成功:',
+      JSON.stringify({ type, subtype, captionLength: caption.length }),
+      '耗时:',
+      Math.round(performance.now() - t0),
+      'ms'
+    )
     return {
       type,
       subtype,
@@ -129,8 +149,67 @@ export async function recognizeFigure(dataUrl: string): Promise<FigureRecognitio
       }
     }
   } catch (err) {
-    console.warn('[VLM] 识别异常:', err)
+    console.warn('[VLM] 识别异常:', err, '耗时:', Math.round(performance.now() - t0), 'ms')
     return null
+  }
+}
+
+/**
+ * 拼接论文上下文提示块（注入 PROMPT 末尾）。
+ * 仅输出存在且有内容的字段，避免无谓 token 消耗。
+ */
+function buildContextBlock(ctx?: FigureContext): string {
+  if (!ctx) return ''
+  const lines: string[] = []
+  if (ctx.summary?.trim()) lines.push(`- 文献摘要（论文目的与整体内容）：${ctx.summary.trim()}`)
+  if (ctx.caption?.trim()) lines.push(`- 图题（论文正文中的图注，优先级高于图中文字）：${ctx.caption.trim()}`)
+  if (ctx.pageText?.trim()) lines.push(`- 所在页正文摘录（图片附近的论述，用于辅助判断图意）：\n${ctx.pageText.trim()}`)
+  if (!lines.length) return ''
+  return (
+    '\n\n【论文上下文】\n以下是论文相关上下文，请据此准确理解这张图的内容、研究对象与目的；' +
+    'caption/description/series 名称中可引用上下文中的化合物名与条件，但图题若有则以其为准。\n' +
+    lines.join('\n')
+  )
+}
+
+/** 论文摘要输入截断上限（字符） */
+const SUMMARY_INPUT_LIMIT = 6000
+
+/**
+ * 生成论文整体摘要（供图片识别上下文使用），说明文献目的/研究对象/关键结果。
+ * 使用 DeepSeek 文本模型；失败返回空串（不影响图片识别）。
+ */
+export async function summarizePaper(documentText: string): Promise<string> {
+  if (!documentText?.trim()) return ''
+  const t0 = performance.now()
+  try {
+    const input = documentText.slice(0, SUMMARY_INPUT_LIMIT)
+    const res = await model.invoke([
+      {
+        role: 'system',
+        content:
+          '你是化学文献摘要专家。请阅读用户提供的论文文本，输出严格 JSON：{"summary": "..."}。' +
+          'summary 用中文，200 字以内，概括：论文研究目的与创新点、研究对象/材料体系、主要研究方法与表征手段、关键结论。' +
+          '该摘要会提供给图片识别模型，帮助它理解论文中图表的含义，因此请突出与图表相关的化合物、实验条件与关键结果。' +
+          '只输出 JSON 对象，不要多余文字或 markdown 代码块标记。'
+      },
+      { role: 'human', content: `论文文本（可能不完整、含提取噪声，请忽略无关内容）：\n${input}` }
+    ])
+    const raw = typeof res.content === 'string' ? res.content : JSON.stringify(res.content)
+    const parsed = extractJson(raw)
+    const summary =
+      parsed && typeof parsed.summary === 'string' ? parsed.summary.trim() : (raw.trim().slice(0, 500) || '')
+    console.log(
+      '[VLM] 论文摘要生成:',
+      JSON.stringify({ len: summary.length, head: summary.slice(0, 60) }),
+      '耗时:',
+      Math.round(performance.now() - t0),
+      'ms'
+    )
+    return summary
+  } catch (err) {
+    console.warn('[VLM] 论文摘要生成失败:', err, '耗时:', Math.round(performance.now() - t0), 'ms')
+    return ''
   }
 }
 

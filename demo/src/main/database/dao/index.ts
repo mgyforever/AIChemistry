@@ -13,6 +13,9 @@ export type { Project, ProjectDocument, ProjectLink, ProjectLinkRequest } from '
 export { ProjectChatDao } from './project-chat.dao'
 export type { ProjectChat } from '../../ai-server/type'
 
+export { ProjectChatConversationDao } from './project-chat-conversation.dao'
+export type { ProjectChatConversation } from '../../ai-server/type'
+
 export { ReproductionDao } from './reproduction.dao'
 
 export { ExperimentDao } from './experiment.dao'

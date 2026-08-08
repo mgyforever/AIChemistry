@@ -10,6 +10,7 @@ import {
   ProjectLinkDao,
   ProjectLinkRequestDao,
   ProjectChatDao,
+  ProjectChatConversationDao,
   ReproductionDao,
   ExperimentDao,
   PaperDao,
@@ -255,14 +256,29 @@ function registerIpcHandlers(): void {
     }
   })
 
-  // ---- 项目 AI 陪伴对话（持久化，中断后可恢复） ----
-  ipcMain.handle('db:project-chat-list', (_e, projectId: number) => ProjectChatDao.findByProject(projectId))
+  // ---- 项目 AI 陪伴对话（会话分组：新建对话 / 历史对话） ----
+  ipcMain.handle('db:project-chat-conv-list', (_e, projectId: number) =>
+    ProjectChatConversationDao.listByProject(projectId)
+  )
+  ipcMain.handle('db:project-chat-conv-create', (_e, projectId: number, title?: string) =>
+    ProjectChatConversationDao.create(projectId, title)
+  )
+  ipcMain.handle('db:project-chat-conv-rename', (_e, id: number, title: string) =>
+    ProjectChatConversationDao.rename(id, title)
+  )
+  ipcMain.handle('db:project-chat-conv-delete', (_e, id: number) => ProjectChatConversationDao.delete(id))
+  ipcMain.handle('db:project-chat-list', (_e, conversationId: number) =>
+    ProjectChatDao.findByConversation(conversationId)
+  )
   ipcMain.handle(
     'db:project-chat-create',
-    (_e, projectId: number, role: 'user' | 'assistant', content: string, chartsJson?: string) =>
-      ProjectChatDao.create(projectId, role, content, chartsJson ?? '[]')
+    (_e, projectId: number, role: 'user' | 'assistant', content: string, chartsJson?: string, conversationId?: number) =>
+      ProjectChatDao.create(projectId, role, content, chartsJson ?? '[]', conversationId)
   )
-  ipcMain.handle('db:project-chat-clear', (_e, projectId: number) => ProjectChatDao.deleteByProject(projectId))
+  ipcMain.handle('db:project-chat-clear', (_e, projectId: number) => {
+    ProjectChatDao.deleteByProject(projectId)
+    ProjectChatConversationDao.deleteByProject(projectId)
+  })
 
   // ---- 复现方案 ----
   ipcMain.handle('db:reproduction-get', (_e, projectId: number) => ({

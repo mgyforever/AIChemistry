@@ -84,7 +84,7 @@
           <b class="si-title">{{
             activeStep.title || `步骤 ${activeStep.step_no}`
           }}</b>
-          <p class="si-desc">{{ activeStep.description }}</p>
+          <div class="si-desc"><MarkdownRenderer :content="activeStep.description" /></div>
           <p v-if="activeStep.duration" class="si-dur">
             时长：{{ activeStep.duration }}
           </p>
@@ -1155,13 +1155,9 @@ async function runPrediction(): Promise<void> {
       `请对项目 ${props.ctx.project.id} 中步骤"${step.title || step.step_no}"（分支 ${props.currentBranchId ?? "主线"}，变体 ${variantName.value}）进行 AI 预测实验（理论依据必须充分）。` +
       `请调用 run_prediction_experiment 工具（step_id=${step.id}${props.currentBranchId !== null ? `, branch_id=${props.currentBranchId}` : ""}${activeExperimentId.value !== null ? `, step_experiment_id=${activeExperimentId.value}` : ""}），` +
       `变量设定为：${desc || "沿用步骤默认变量"}，并给出预测结果、性质分析与理论依据。`;
-    if (props.mode === "window") {
-      // 独立窗口模式：直连 agent，不经过主窗口 store
-      const reply = await api.ai.experimentChat({ projectId: props.ctx.project.id, message, history: [] });
-      lastResult.value = extractMessages(reply);
-    } else {
-      await reproStore.sendMessage(message);
-    }
+    // 直连 agent 并在本地面板展示结果（不注入聊天框；独立窗口与内嵌模式统一处理）
+    const reply = await api.ai.experimentChat({ projectId: props.ctx.project.id, message, history: [] });
+    lastResult.value = extractMessages(reply);
     await refresh();
   } catch (err) {
     console.error("[Component] StepDetailWindow 预测实验异常:", err);
@@ -1200,12 +1196,9 @@ async function runCompare(): Promise<void> {
   try {
     const message =
       `请对本项目进行综合对比分析。问题：${cmpQuestion.value.trim()}。请调用 comprehensive_analysis 工具，综合所有分叉/主线的真实数据 + AI 预测结果 + 文献内容（含参考项目文献，引用时标注来源项目）回答，并附对比图表。`;
-    if (props.mode === "window") {
-      const reply = await api.ai.experimentChat({ projectId: props.ctx.project.id, message, history: [] });
-      lastResult.value = extractMessages(reply);
-    } else {
-      await reproStore.sendMessage(message);
-    }
+    // 直连 agent 并在本地面板展示结果（不注入聊天框；独立窗口与内嵌模式统一处理）
+    const reply = await api.ai.experimentChat({ projectId: props.ctx.project.id, message, history: [] });
+    lastResult.value = extractMessages(reply);
     cmpQuestion.value = "";
     await refresh();
   } catch (err) {

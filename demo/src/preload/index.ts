@@ -101,17 +101,27 @@ const api = {
       addDocument: (projectId: number, documentId: number, role?: string): Promise<{ id: number }> =>
         ipcRenderer.invoke('db:project-document-create', projectId, documentId, role),
       context: (id: number): Promise<unknown> => ipcRenderer.invoke('db:project-context', id),
-      /** 项目 AI 陪伴对话（持久化，中断后可恢复） */
-      chatList: (projectId: number): Promise<unknown[]> => ipcRenderer.invoke('db:project-chat-list', projectId),
+      /** 项目 AI 陪伴对话（会话分组：新建对话 / 历史对话） */
+      chatList: (conversationId: number): Promise<unknown[]> =>
+        ipcRenderer.invoke('db:project-chat-list', conversationId),
       chatAdd: (
         projectId: number,
         role: 'user' | 'assistant',
         content: string,
-        chartsJson?: string
+        chartsJson?: string,
+        conversationId?: number
       ): Promise<{ id: number }> =>
-        ipcRenderer.invoke('db:project-chat-create', projectId, role, content, chartsJson),
+        ipcRenderer.invoke('db:project-chat-create', projectId, role, content, chartsJson, conversationId),
       chatClear: (projectId: number): Promise<void> =>
-        ipcRenderer.invoke('db:project-chat-clear', projectId)
+        ipcRenderer.invoke('db:project-chat-clear', projectId),
+      chatConversations: (projectId: number): Promise<unknown[]> =>
+        ipcRenderer.invoke('db:project-chat-conv-list', projectId),
+      chatConversationCreate: (projectId: number, title?: string): Promise<{ id: number }> =>
+        ipcRenderer.invoke('db:project-chat-conv-create', projectId, title),
+      chatConversationRename: (id: number, title: string): Promise<void> =>
+        ipcRenderer.invoke('db:project-chat-conv-rename', id, title),
+      chatConversationDelete: (id: number): Promise<void> =>
+        ipcRenderer.invoke('db:project-chat-conv-delete', id)
     },
     reproduction: {
       get: (projectId: number): Promise<unknown> => ipcRenderer.invoke('db:reproduction-get', projectId),

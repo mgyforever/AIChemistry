@@ -82,15 +82,27 @@ function createTables(): void {
       updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
     );
 
-    -- 1.1 项目 AI 陪伴对话（持久化，中断后可恢复上下文）
+    -- 1.1 项目 AI 陪伴对话-会话分组（新建对话 / 历史对话）
+    CREATE TABLE IF NOT EXISTS project_chat_conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      title TEXT NOT NULL DEFAULT '新对话',
+      created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+      updated_at DATETIME DEFAULT (datetime('now', 'localtime')),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
+    -- 1.1 项目 AI 陪伴对话（持久化，中断后可恢复上下文；按 conversation_id 分组）
     CREATE TABLE IF NOT EXISTS project_chats (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       project_id INTEGER NOT NULL,
+      conversation_id INTEGER,
       role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
       content TEXT NOT NULL,
       charts_json TEXT DEFAULT '[]',
       created_at DATETIME DEFAULT (datetime('now', 'localtime')),
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (conversation_id) REFERENCES project_chat_conversations(id) ON DELETE CASCADE
     );
 
     -- 2. 项目-文献关联
@@ -418,6 +430,31 @@ function createTables(): void {
   migrateProjectsResumeState()
   // 旧库迁移：v0.7/0.8/0.9 新增列（步骤依赖/门禁/分支/附件/统计图/向量状态）
   migrateReproColumns()
+  // 旧库迁移：项目对话会话分组（conversation_id 列 + 回填默认会话）
+  migrateProjectChatConversations()
+}
+
+/**
+ * 迁移：项目对话会话分组。
+ * - 为 project_chats 补充 conversation_id 列（可空，外键级联删除）
+ * - 旧数据（无会话）按项目各建一个"对话 1"并整体归属，保证历史对话可查看
+ */
+function migrateProjectChatConversations(): void {
+  if (!db) return
+  ensureColumn('project_chats', 'conversation_id', 'INTEGER')
+  const projects = db
+    .prepare('SELECT DISTINCT project_id FROM project_chats WHERE conversation_id IS NULL')
+    .all() as Array<{ project_id: number }>
+  for (const p of projects) {
+    const r = db
+      .prepare('INSERT INTO project_chat_conversations (project_id, title) VALUES (?, ?)')
+      .run(p.project_id, '对话 1')
+    db.prepare('UPDATE project_chats SET conversation_id = ? WHERE project_id = ? AND conversation_id IS NULL').run(
+      r.lastInsertRowid,
+      p.project_id
+    )
+  }
+  if (projects.length) console.log('[SQLite] 迁移项目对话为会话分组:', projects.length, '个项目')
 }
 
 /**

@@ -1,14 +1,18 @@
 import { BrowserWindow } from 'electron'
-import type { ExperimentEventName, ExperimentEventPayload, ExperimentStateKind } from '../type'
+import type {
+  ExperimentEventName,
+  ExperimentStateKind,
+  DocumentImportProgress
+} from '../type'
 
 /**
  * 主进程 → 渲染进程事件广播（v0.10，见实施计划 §10.4）
  *
- * 阶段/步骤/分支状态变更、后台延迟入库完成、共享请求等由主进程 webContents.send 广播，
- * 渲染进程 stores/repro.ts 监听后按 projectId 命中刷新视图（不依赖 Agent 对话流）。
+ * 阶段/步骤/分支状态变更、后台延迟入库完成、共享请求、文献导入进度等由主进程
+ * webContents.send 广播，渲染进程 stores/repro.ts / 视图组件监听后刷新（不依赖 Agent 对话流）。
  */
 
-function broadcast(name: ExperimentEventName, payload: ExperimentEventPayload): void {
+function broadcast(name: ExperimentEventName, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
       win.webContents.send(name, payload)
@@ -48,4 +52,9 @@ export function notifyShareResolved(projectId: number, requestId: number, status
     entityId: requestId,
     status
   })
+}
+
+/** 文献导入/图表解析进度（前端等待动画按阶段切换） */
+export function notifyDocumentImportProgress(payload: DocumentImportProgress): void {
+  broadcast('document-import:progress', payload)
 }
